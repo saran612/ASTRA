@@ -116,10 +116,15 @@ export class DiscrepancyService {
     // Auto transition to DISCREPANCY if there are open discrepancies and current state allows it
     if (results.length > 0 && fdr.status === 'UNDER_SCRUTINY') {
       try {
+        let realActorId = actorId;
+        const userExists = await this.prisma.user.findUnique({ where: { id: actorId } });
+        if (!userExists) {
+          realActorId = await this.getSystemUserId();
+        }
         await this.lifecycleService.transition({
           fdrId: fdr.id,
           toStatus: 'DISCREPANCY',
-          actor: { id: actorId === 'SYSTEM' ? (await this.getSystemUserId()) : actorId, role: 'OFFICER' },
+          actor: { id: realActorId, role: 'OFFICER' },
           remarks: `Automated discrepancy engine detected ${results.length} issue(s)`,
         });
       } catch (err: any) {

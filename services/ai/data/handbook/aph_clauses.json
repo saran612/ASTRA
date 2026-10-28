@@ -1,0 +1,44 @@
+[
+  {
+    "clause_id": "APH 2024-27 Clause 4.1.2",
+    "title": "Mandatory Security Deposit via Fixed Deposit Receipt",
+    "category": "SECURITY_DEPOSIT",
+    "text": "Every technical institution seeking approval from AICTE must submit a mandatory security deposit in the form of a Fixed Deposit Receipt (FDR) pledged to the Member Secretary, All India Council for Technical Education, New Delhi. The security deposit serves as a performance guarantee for statutory regulatory compliance and student welfare."
+  },
+  {
+    "clause_id": "APH 2024-27 Clause 4.1.5",
+    "title": "Minimum Validity Tenure and Auto-Renewal Mandate",
+    "category": "VALIDITY_AND_TENURE",
+    "text": "The security deposit FDR must maintain a mandatory minimum initial tenure of three (3) years (or 10 years for newly established institutions). The institution must provide an irrevocable mandate to the issuing bank ensuring automatic renewal upon maturity until a formal release order is granted in writing by the Council."
+  },
+  {
+    "clause_id": "APH 2024-27 Clause 4.2.1",
+    "title": "Joint Lien Marking in Bank Books",
+    "category": "LIEN_MARKING",
+    "text": "The FDR instrument must be drawn on a Scheduled Commercial Bank with safe joint lien endorsed in favour of the Member Secretary, AICTE, New Delhi. The issuing bank manager must confirm in writing that lien is noted in bank ledgers and premature encashment or loans against the instrument are strictly prohibited without AICTE NOC."
+  },
+  {
+    "clause_id": "APH 2024-27 Clause 4.2.8",
+    "title": "Deposit Amount Slabs by Program Tier",
+    "category": "DEPOSIT_SLABS",
+    "text": "Security deposit amounts follow prescribed program slabs: Engineering & Technology (UG Degree: INR 15,00,000; Diploma: INR 10,00,000); Management (MBA/PGDM: INR 10,00,000); MCA: INR 10,00,000; Architecture and Town Planning: INR 10,00,000. Combined integrated technical campuses require cumulative compliance per active program."
+  },
+  {
+    "clause_id": "APH 2024-27 Clause 4.3.4",
+    "title": "Two-Tier Bank Scrutiny and Verification",
+    "category": "SCRUTINY_PROTOCOL",
+    "text": "Regional Scrutiny Officers must independently verify the genuine issuance of every pledged FDR. Promotion to verified status requires direct written communication from the issuing bank branch manager or authenticated electronic confirmation confirming lien marking and deposit balance."
+  },
+  {
+    "clause_id": "APH 2024-27 Clause 4.4.1",
+    "title": "Procedure for Refund and Release of Deposit",
+    "category": "REFUND_RELEASE",
+    "text": "Clearance for release or refund of the security deposit following permanent closure or completion of mandatory lock-in period requires two-tier approval. The Regional Officer must endorse the 5-point regulatory checklist (closure order, no CAG audit queries, no student refund grievances, surrender of original receipt, signed recommendation) followed by final sign-off by the Competent Authority. FDR Vault records and validates authorizations only and does not execute cash disbursements."
+  },
+  {
+    "clause_id": "APH 2024-27 Clause 4.5.2",
+    "title": "Forfeiture and Encashment for Non-Compliance",
+    "category": "ENFORCEMENT_FORFEITURE",
+    "text": "AICTE reserves the statutory right to encash and forfeit security deposits in cases of fraudulent documentation, unauthorized closure of courses without student relocation, non-refund of caution money to admitted students, or serious regulatory violations as determined by the Executive Committee."
+  }
+]

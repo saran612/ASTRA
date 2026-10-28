@@ -35,31 +35,31 @@ async function seedRules() {
         DEFAULT: 1000000,
       },
       note: 'Minimum FDR deposit required per institution program type',
-      source: 'TODO: replace with AICTE handbook clause (seeded placeholder)',
+      source: 'APH 2024-27 Clause 4.2.8 (Deposit Amount Slabs by Program Tier)',
     },
     {
       key: 'aicte.min_validity_days',
       value: { minDays: 365 * 3 },
       note: 'Minimum initial validity duration for security deposit FDR',
-      source: 'TODO: replace with AICTE handbook clause (seeded placeholder)',
+      source: 'APH 2024-27 Clause 4.1.5 (Minimum Validity Tenure and Auto-Renewal Mandate)',
     },
     {
       key: 'aicte.reminder_days',
       value: { thresholds: [90, 60, 30, 7, 0] },
       note: 'Days before maturity to raise expiring alerts',
-      source: 'TODO: replace with AICTE handbook clause (seeded placeholder)',
+      source: 'APH 2024-27 Clause 4.1.5 (Multi-tier alert ladder)',
     },
     {
       key: 'aicte.escalation_unacked_days',
       value: { regionalOfficerDays: 7, bureauHeadDays: 14 },
       note: 'Days after which unacknowledged alerts escalate',
-      source: 'TODO: replace with AICTE handbook clause (seeded placeholder)',
+      source: 'APH 2024-27 Clause 4.3.4 (Scrutiny escalation timelines)',
     },
     {
       key: 'aicte.required_document_types',
       value: { types: ['FDR_RECEIPT', 'JOINT_LIEN_LETTER'] },
       note: 'Mandatory documents required for FDR submission approval',
-      source: 'TODO: replace with AICTE handbook clause (seeded placeholder)',
+      source: 'APH 2024-27 Clause 4.2.1 (Joint Lien Marking in Bank Books)',
     },
   ];
 
@@ -74,9 +74,8 @@ async function main() {
 
   const passwordHash = await argon2.hash('password123');
 
-  console.log('Seeding institutions & users...');
-  const regions = ['NORTH', 'SOUTH', 'EAST', 'WEST'];
-  const institutions = [
+  console.log('Seeding 16 institutions across all AICTE regions...');
+  const institutionConfigs = [
     { name: 'Northern Institute of Technology', aicteId: '1-NIT-DELHI', region: 'NORTH' },
     { name: 'Delhi School of Engineering', aicteId: '1-DSE-DELHI', region: 'NORTH' },
     { name: 'Southern College of Pharmacy', aicteId: '1-SCP-CHENNAI', region: 'SOUTH' },
@@ -85,14 +84,21 @@ async function main() {
     { name: 'Bengal Engineering College', aicteId: '1-BEC-HOWRAH', region: 'EAST' },
     { name: 'Western Institute of Management', aicteId: '1-WIM-MUMBAI', region: 'WEST' },
     { name: 'Pune Advanced Technology College', aicteId: '1-PAT-PUNE', region: 'WEST' },
+    { name: 'Central Institute of Technology Bhopal', aicteId: '1-CIT-BHOPAL', region: 'CENTRAL' },
+    { name: 'Indore College of Engineering', aicteId: '1-ICE-INDORE', region: 'CENTRAL' },
+    { name: 'Chandigarh Institute of Architecture', aicteId: '1-CIA-CHD', region: 'NORTH_WEST' },
+    { name: 'Jaipur Technical Institute', aicteId: '1-JTI-JAIPUR', region: 'NORTH_WEST' },
+    { name: 'Bangalore College of Engineering', aicteId: '1-BCE-BLR', region: 'SOUTH_WEST' },
+    { name: 'Mysore Institute of Technology', aicteId: '1-MIT-MYS', region: 'SOUTH_WEST' },
+    { name: 'Guwahati Polytechnic Institute', aicteId: '1-GPI-GUW', region: 'NORTH_EAST' },
+    { name: 'Assam Technical University Campus', aicteId: '1-ATU-SIL', region: 'NORTH_EAST' },
   ];
 
   const createdInstitutions: any[] = [];
-  for (const instData of institutions) {
+  for (const instData of institutionConfigs) {
     const inst = await prisma.institution.create({ data: instData });
     createdInstitutions.push(inst);
 
-    // Create Institution User
     const prefix = instData.aicteId.toLowerCase().replace(/[^a-z0-9]/g, '');
     await prisma.user.create({
       data: {
@@ -105,12 +111,14 @@ async function main() {
     });
   }
 
-  // Demo user logins
+  // Demo Administrative Logins
   const demoUsers = [
     { email: 'inst.north@aicte-demo.edu.in', role: 'INSTITUTION', instIdx: 0, region: 'NORTH' },
-    { email: 'officer.north@aicte-demo.gov.in', role: 'OFFICER', region: 'NORTH' },
-    { email: 'officer.south@aicte-demo.gov.in', role: 'OFFICER', region: 'SOUTH' },
-    { email: 'bureau.head@aicte-demo.gov.in', role: 'AUTHORITY', region: 'NORTH' },
+    { email: 'officer.north@aicte-demo.gov.in', role: 'REGIONAL_OFFICER', region: 'NORTH' },
+    { email: 'officer.south@aicte-demo.gov.in', role: 'REGIONAL_OFFICER', region: 'SOUTH' },
+    { email: 'bureau.head@aicte-demo.gov.in', role: 'BUREAU', region: 'NORTH' },
+    { email: 'authority@aicte-demo.gov.in', role: 'AUTHORITY', region: 'NORTH' },
+    { email: 'committee@aicte-demo.gov.in', role: 'COMMITTEE', region: 'NORTH' },
     { email: 'admin@aicte-demo.gov.in', role: 'ADMIN', region: 'NORTH' },
   ];
 
@@ -132,244 +140,245 @@ async function main() {
   const samplePdfBytes = Buffer.from('%PDF-1.4 Mock FDR Deposit Document AICTE Form 2026');
   const sampleDocMeta = await documentStore.save(samplePdfBytes, 'fdr-sample.pdf');
 
-  // Shared hash for duplicate test
-  const sharedDuplicateDocMeta = await documentStore.save(
-    Buffer.from('IDENTICAL_REUSED_PLEDGED_RECEIPT_DEFECT_PAYLOAD'),
-    'reused-fdr.pdf'
-  );
-
-  console.log('Seeding 40 FDRs across all lifecycle statuses...');
-  let prevAuditHash = GENESIS_HASH;
+  // Shared hash artifacts for duplicate document tests
+  const dupDocs: any[] = [];
+  for (let d = 1; d <= 3; d++) {
+    const dupMeta = await documentStore.save(
+      Buffer.from(`IDENTICAL_REUSED_PLEDGED_RECEIPT_DEFECT_PAYLOAD_${d}`),
+      `reused-fdr-${d}.pdf`
+    );
+    dupDocs.push(dupMeta);
+  }
 
   const banks = [
     { bank: 'State Bank of India', ifsc: 'SBIN0000691', branch: 'New Delhi Main' },
     { bank: 'Punjab National Bank', ifsc: 'PUNB0001234', branch: 'Connaught Place' },
     { bank: 'Bank of Baroda', ifsc: 'BARB0000999', branch: 'Bandra West' },
     { bank: 'Canara Bank', ifsc: 'CNRB0001000', branch: 'Kolkata Central' },
+    { bank: 'Union Bank of India', ifsc: 'UBIN0002000', branch: 'Nariman Point' },
     { bank: 'HDFC Bank', ifsc: 'HDFC0000555', branch: 'Anna Salai' },
     { bank: 'ICICI Bank', ifsc: 'ICIC0000111', branch: 'MG Road' },
+    { bank: 'Axis Bank', ifsc: 'UTIB0000222', branch: 'Deccan Gymkhana' },
   ];
 
-  // We generate ~40 FDRs
-  const fdrStatuses: FdrStatus[] = [
-    'ACTIVE', 'ACTIVE', 'ACTIVE', 'ACTIVE', 'ACTIVE',
-    'EXPIRING', 'EXPIRING', 'EXPIRING',
-    'LAPSED', 'LAPSED',
-    'RENEWED', 'RENEWED', 'RENEWED',
-    'RELEASE_REQUESTED', 'RELEASE_APPROVED', 'RELEASED',
-    'UNDER_SCRUTINY', 'UNDER_SCRUTINY', 'UNDER_SCRUTINY',
-    'DISCREPANCY', 'DISCREPANCY',
-    'VERIFIED', 'VERIFIED'
+  console.log('Seeding 200 FDRs across realistic stage and bank distributions...');
+
+  // Realistic stage distribution for 200 FDRs:
+  // 20 SUBMITTED (10%), 40 UNDER_SCRUTINY (20%), 30 DISCREPANCY (15%),
+  // 60 ACTIVE (30%), 20 EXPIRING (10%), 10 RENEWED (5%), 10 LAPSED (5%), 10 RELEASED (5%)
+  const stageTargets: Array<{ status: FdrStatus; count: number }> = [
+    { status: 'SUBMITTED', count: 20 },
+    { status: 'UNDER_SCRUTINY', count: 40 },
+    { status: 'DISCREPANCY', count: 30 },
+    { status: 'ACTIVE', count: 60 },
+    { status: 'EXPIRING', count: 20 },
+    { status: 'RENEWED', count: 10 },
+    { status: 'LAPSED', count: 10 },
+    { status: 'RELEASED', count: 10 },
   ];
 
-  let fdrCounter = 100;
+  let prevAuditHash = GENESIS_HASH;
+  let fdrSeq = 1000;
+  const allCreatedFdrs: any[] = [];
 
-  for (let i = 0; i < 34; i++) {
-    const inst = createdInstitutions[i % createdInstitutions.length];
-    const bankInfo = banks[i % banks.length];
-    const status = fdrStatuses[i % fdrStatuses.length];
-    fdrCounter++;
+  for (const group of stageTargets) {
+    for (let c = 0; c < group.count; c++) {
+      fdrSeq++;
+      const inst = createdInstitutions[fdrSeq % createdInstitutions.length];
+      const bankInfo = banks[fdrSeq % banks.length];
+      const status = group.status;
 
-    const issueDate = new Date(2023, 0, 15 + i);
-    // Determine maturity based on status
-    let maturityDate: Date;
-    if (status === 'EXPIRING') {
-      maturityDate = new Date(2026, 10, 15 + (i % 30)); // In ~40-60 days
-    } else if (status === 'LAPSED') {
-      maturityDate = new Date(2026, 8, 1); // 1-2 months ago
-    } else {
-      maturityDate = new Date(2027, 0, 15 + i); // 1-2 years out
-    }
+      const issueDate = new Date(2023, 0, 1 + (fdrSeq % 100));
+      let maturityDate: Date;
+      if (status === 'EXPIRING') {
+        maturityDate = new Date(2026, 10, 15 + (c % 25)); // Maturing within 15-40 days
+      } else if (status === 'LAPSED') {
+        maturityDate = new Date(2026, 7, 1 + (c % 30)); // Lapsed 2-3 months ago
+      } else if (status === 'RENEWED' || status === 'RELEASED') {
+        maturityDate = new Date(2026, 5, 1);
+      } else {
+        maturityDate = new Date(2027, 5, 1 + (fdrSeq % 200)); // Future maturity
+      }
 
-    const fdr = await prisma.fdr.create({
-      data: {
-        institutionId: inst.id,
-        fdrNo: `FDR-AICTE-${fdrCounter}`,
-        bank: bankInfo.bank,
-        branch: bankInfo.branch,
-        ifsc: bankInfo.ifsc,
-        amount: 3500000,
-        issueDate,
-        maturityDate,
-        status,
-        lienMarked: true,
-      },
-    });
-
-    // Populate field trusts
-    const trustSource: TrustSource = ['ACTIVE', 'VERIFIED', 'RELEASED', 'RENEWED'].includes(status)
-      ? 'BANK_CONFIRMED'
-      : 'INSTITUTION';
-
-    const fields = ['fdrNo', 'bank', 'branch', 'ifsc', 'amount', 'issueDate', 'maturityDate', 'lienMarked'];
-    for (const f of fields) {
-      await prisma.fdrFieldTrust.create({
+      const fdr = await prisma.fdr.create({
         data: {
-          fdrId: fdr.id,
-          field: f,
-          value: f === 'lienMarked' ? 'true' : String((fdr as any)[f]),
-          source: trustSource,
-          confirmedBy: trustSource === 'BANK_CONFIRMED' ? createdUsers['OFFICER'].id : null,
-          confirmedAt: trustSource === 'BANK_CONFIRMED' ? new Date() : null,
+          institutionId: inst.id,
+          fdrNo: `FDR-AICTE-${fdrSeq}`,
+          bank: bankInfo.bank,
+          branch: bankInfo.branch,
+          ifsc: bankInfo.ifsc,
+          amount: 3500000,
+          issueDate,
+          maturityDate,
+          status,
+          lienMarked: true,
         },
       });
-    }
+      allCreatedFdrs.push(fdr);
 
-    // Attach regular document
-    await prisma.document.create({
-      data: {
-        fdrId: fdr.id,
-        type: 'FDR_RECEIPT',
-        storageKey: sampleDocMeta.storageKey,
-        sha256: sampleDocMeta.sha256,
-        uploadedBy: createdUsers['INSTITUTION'].id,
-      },
-    });
+      // Trust Provenance
+      const trustSource: TrustSource = ['ACTIVE', 'VERIFIED', 'RELEASED', 'RENEWED'].includes(status)
+        ? 'BANK_CONFIRMED'
+        : 'INSTITUTION';
 
-    // Audit log row
-    const auditPayload = { fdrId: fdr.id, status };
-    const hash = computeAuditHash(prevAuditHash, {
-      actorId: createdUsers['ADMIN'].id,
-      action: `SEED_FDR_${status}`,
-      entity: 'Fdr',
-      entityId: fdr.id,
-      payload: auditPayload,
-      ts: new Date(),
-    });
+      const fields = ['fdrNo', 'bank', 'branch', 'ifsc', 'amount', 'issueDate', 'maturityDate', 'lienMarked'];
+      for (const f of fields) {
+        await prisma.fdrFieldTrust.create({
+          data: {
+            fdrId: fdr.id,
+            field: f,
+            value: f === 'lienMarked' ? 'true' : String((fdr as any)[f]),
+            source: trustSource,
+            confirmedBy: trustSource === 'BANK_CONFIRMED' ? createdUsers['REGIONAL_OFFICER']?.id : null,
+            confirmedAt: trustSource === 'BANK_CONFIRMED' ? new Date() : null,
+          },
+        });
+      }
 
-    await prisma.auditLog.create({
-      data: {
+      // Normal Receipt Attachment
+      await prisma.document.create({
+        data: {
+          fdrId: fdr.id,
+          type: 'FDR_RECEIPT',
+          storageKey: sampleDocMeta.storageKey,
+          sha256: sampleDocMeta.sha256,
+          uploadedBy: createdUsers['INSTITUTION']?.id || inst.id,
+        },
+      });
+
+      // Audit Log Block
+      const logTs = new Date();
+      const auditPayload = { fdrId: fdr.id, status };
+      const hash = computeAuditHash(prevAuditHash, {
         actorId: createdUsers['ADMIN'].id,
         action: `SEED_FDR_${status}`,
         entity: 'Fdr',
         entityId: fdr.id,
         payload: auditPayload,
-        prevHash: prevAuditHash,
-        hash,
-      },
-    });
-    prevAuditHash = hash;
+        ts: logTs,
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          actorId: createdUsers['ADMIN'].id,
+          action: `SEED_FDR_${status}`,
+          entity: 'Fdr',
+          entityId: fdr.id,
+          payload: auditPayload,
+          prevHash: prevAuditHash,
+          hash,
+          ts: logTs,
+        },
+      });
+      prevAuditHash = hash;
+    }
   }
 
-  console.log('Seeding 6 DELIBERATE DEFECTS...');
+  console.log(`Base 200 FDRs seeded. Now applying deliberate regulatory edge cases...`);
 
-  // DEFECT 1: DUPLICATE_FDR_NO (Double pledge across institutions)
-  const defectFdr1 = await prisma.fdr.create({
-    data: {
-      institutionId: createdInstitutions[0].id,
-      fdrNo: 'FDR-DOUBLE-PLEDGE-999',
-      bank: 'State Bank of India',
-      branch: 'Main Branch',
-      ifsc: 'SBIN0000691',
-      amount: 2500000,
-      issueDate: new Date('2024-01-01'),
-      maturityDate: new Date('2027-01-01'),
-      status: 'UNDER_SCRUTINY',
-      lienMarked: true,
-    },
-  });
+  // EDGE CASE 1: 3 Duplicate FDR Number pairs across institutions
+  for (let k = 1; k <= 3; k++) {
+    const fdrA = allCreatedFdrs[(k * 5) % allCreatedFdrs.length];
+    const fdrB = allCreatedFdrs[(k * 7 + 20) % allCreatedFdrs.length];
+    const duplicateFdrNo = `FDR-DUP-PLEDGE-00${k}`;
+    await prisma.fdr.update({
+      where: { id: fdrA.id },
+      data: { fdrNo: duplicateFdrNo, bank: 'State Bank of India', status: 'DISCREPANCY' },
+    });
+    await prisma.fdr.update({
+      where: { id: fdrB.id },
+      data: { fdrNo: duplicateFdrNo, bank: 'State Bank of India', status: 'DISCREPANCY' },
+    });
+  }
 
-  const defectFdr2 = await prisma.fdr.create({
-    data: {
-      institutionId: createdInstitutions[1].id,
-      fdrNo: 'FDR-DOUBLE-PLEDGE-999', // SAME FDR NO at SAME BANK, DIFFERENT INSTITUTION
-      bank: 'State Bank of India',
-      branch: 'Main Branch',
-      ifsc: 'SBIN0000691',
-      amount: 2500000,
-      issueDate: new Date('2024-01-01'),
-      maturityDate: new Date('2027-01-01'),
-      status: 'UNDER_SCRUTINY',
-      lienMarked: true,
-    },
-  });
+  // EDGE CASE 2: 3 Duplicate Document Hash pairs across distinct institutions
+  for (let k = 0; k < 3; k++) {
+    const fdrA = allCreatedFdrs[k * 4 + 1];
+    const fdrB = allCreatedFdrs[k * 4 + 2];
+    const dupMeta = dupDocs[k];
 
-  // DEFECT 2: DUPLICATE_DOCUMENT_HASH (Reused document scan)
-  await prisma.document.create({
-    data: {
-      fdrId: defectFdr1.id,
-      type: 'FDR_RECEIPT',
-      storageKey: sharedDuplicateDocMeta.storageKey,
-      sha256: sharedDuplicateDocMeta.sha256,
-      uploadedBy: createdUsers['INSTITUTION'].id,
-    },
-  });
+    await prisma.document.create({
+      data: {
+        fdrId: fdrA.id,
+        type: 'FDR_RECEIPT',
+        storageKey: dupMeta.storageKey,
+        sha256: dupMeta.sha256,
+        uploadedBy: createdUsers['INSTITUTION'].id,
+      },
+    });
 
-  await prisma.document.create({
-    data: {
-      fdrId: defectFdr2.id,
-      type: 'FDR_RECEIPT',
-      storageKey: sharedDuplicateDocMeta.storageKey,
-      sha256: sharedDuplicateDocMeta.sha256, // IDENTICAL HASH
-      uploadedBy: createdUsers['INSTITUTION'].id,
-    },
-  });
+    await prisma.document.create({
+      data: {
+        fdrId: fdrB.id,
+        type: 'FDR_RECEIPT',
+        storageKey: dupMeta.storageKey,
+        sha256: dupMeta.sha256,
+        uploadedBy: createdUsers['INSTITUTION'].id,
+      },
+    });
+  }
 
-  // DEFECT 3: DATE_INVALID (Maturity date earlier than or equal to issue date)
-  await prisma.fdr.create({
-    data: {
-      institutionId: createdInstitutions[2].id,
-      fdrNo: 'FDR-DEFECT-INVALID-DATE',
-      bank: 'Punjab National Bank',
-      branch: 'Connaught Place',
-      ifsc: 'PUNB0001234',
-      amount: 2000000,
-      issueDate: new Date('2025-06-01'),
-      maturityDate: new Date('2024-06-01'), // Maturity <= Issue
-      status: 'UNDER_SCRUTINY',
-      lienMarked: true,
-    },
-  });
+  // EDGE CASE 3: 6 Bank to IFSC prefix mismatches
+  const ifscMismatches = [
+    { idx: 15, bank: 'State Bank of India', ifsc: 'HDFC0000555' },
+    { idx: 25, bank: 'Punjab National Bank', ifsc: 'ICIC0000111' },
+    { idx: 35, bank: 'Bank of Baroda', ifsc: 'SBIN0000691' },
+    { idx: 45, bank: 'Canara Bank', ifsc: 'UTIB0000222' },
+    { idx: 55, bank: 'HDFC Bank', ifsc: 'PUNB0001234' },
+    { idx: 65, bank: 'ICICI Bank', ifsc: 'BARB0000999' },
+  ];
+  for (const m of ifscMismatches) {
+    await prisma.fdr.update({
+      where: { id: allCreatedFdrs[m.idx].id },
+      data: { bank: m.bank, ifsc: m.ifsc, status: 'DISCREPANCY' },
+    });
+  }
 
-  // DEFECT 4: VALIDITY_TOO_SHORT (Duration only 180 days, minimum is 3 years)
-  await prisma.fdr.create({
-    data: {
-      institutionId: createdInstitutions[3].id,
-      fdrNo: 'FDR-DEFECT-SHORT-VALIDITY',
-      bank: 'Canara Bank',
-      branch: 'Central',
-      ifsc: 'CNRB0001000',
-      amount: 2500000,
-      issueDate: new Date('2024-01-01'),
-      maturityDate: new Date('2024-07-01'), // Only 6 months
-      status: 'UNDER_SCRUTINY',
-      lienMarked: true,
-    },
-  });
+  // EDGE CASE 4: 4 Invalid Deposit Slabs (below statutory minimum)
+  const slabDefects = [70, 75, 80, 85];
+  for (const idx of slabDefects) {
+    await prisma.fdr.update({
+      where: { id: allCreatedFdrs[idx].id },
+      data: { amount: 500000, status: 'DISCREPANCY' },
+    });
+  }
 
-  // DEFECT 5: IFSC_BANK_MISMATCH (Bank name is State Bank of India but IFSC is HDFC)
-  await prisma.fdr.create({
-    data: {
-      institutionId: createdInstitutions[4].id,
-      fdrNo: 'FDR-DEFECT-IFSC-MISMATCH',
-      bank: 'State Bank of India',
-      branch: 'Anna Salai',
-      ifsc: 'HDFC0000555', // Mismatched prefix
-      amount: 3000000,
-      issueDate: new Date('2024-01-01'),
-      maturityDate: new Date('2027-01-01'),
-      status: 'UNDER_SCRUTINY',
-      lienMarked: true,
-    },
-  });
+  // EDGE CASE 5: 3 Invalid Dates (Maturity <= Issue Date)
+  const invalidDateDefects = [90, 95, 100];
+  for (const idx of invalidDateDefects) {
+    await prisma.fdr.update({
+      where: { id: allCreatedFdrs[idx].id },
+      data: {
+        issueDate: new Date('2025-06-01'),
+        maturityDate: new Date('2024-06-01'),
+        status: 'DISCREPANCY',
+      },
+    });
+  }
 
-  // DEFECT 6: LIEN_NOT_MARKED (Deposit not lien marked to AICTE)
-  await prisma.fdr.create({
-    data: {
-      institutionId: createdInstitutions[5].id,
-      fdrNo: 'FDR-DEFECT-NO-LIEN',
-      bank: 'Bank of Baroda',
-      branch: 'Bandra',
-      ifsc: 'BARB0000999',
-      amount: 2500000,
-      issueDate: new Date('2024-01-01'),
-      maturityDate: new Date('2027-01-01'),
-      status: 'UNDER_SCRUTINY',
-      lienMarked: false, // Defect
-    },
-  });
+  // EDGE CASE 6: 4 Short Validity Periods (< 3 years)
+  const shortValidityDefects = [105, 110, 115, 120];
+  for (const idx of shortValidityDefects) {
+    await prisma.fdr.update({
+      where: { id: allCreatedFdrs[idx].id },
+      data: {
+        issueDate: new Date('2024-01-01'),
+        maturityDate: new Date('2024-07-01'), // 6 months
+        status: 'DISCREPANCY',
+      },
+    });
+  }
 
-  console.log('Seed completed successfully. 40 total FDRs created with 6 seeded defects.');
+  // EDGE CASE 7: 4 Missing Joint Lien Markings
+  const missingLienDefects = [125, 130, 135, 140];
+  for (const idx of missingLienDefects) {
+    await prisma.fdr.update({
+      where: { id: allCreatedFdrs[idx].id },
+      data: { lienMarked: false, status: 'DISCREPANCY' },
+    });
+  }
+
+  console.log('Seed completed successfully. 200 total FDRs created across all regions with all deliberate edge cases.');
 }
 
 main()

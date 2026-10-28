@@ -33,14 +33,15 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **Unified Obligation Engine** (FDR validity, `STAGE_SLA`, `UNDERTAKING`, `LEASE_DOC`) | `DONE` | `backend/src/services/obligation-engine.ts`<br>`backend/prisma/schema.prisma` | `backend/test/obligation-scheduler.test.ts` | Polymorphic obligation register tracking multiple regulatory obligation types under unified alert ladders. |
 | **Config-Driven Workflow Engine** (Route templates `ONLY_SCRUTINY`, `SCRUTINY_EVC`, `EVC_SAC_SHC`, `ONLY_EVC`, re-scrutiny loop, reason for revert) | `DONE` | `packages/shared/src/workflow-templates.ts`<br>`packages/shared/src/state-machine.ts` | `backend/test/workflow-property.test.ts` | 4 versioned route templates defined with mandatory revert justifications and discrepancy blockers, verified via 1,000 random-walk property tests. |
-| **AI Assist Service (FastAPI)** | `MISSING` | None | None | No `services/ai` directory. No OCR date/field extraction, no RAG report over handbook clauses citing `{clause_id}`, no SLA-breach risk LightGBM/scikit-learn model. |
+| **AI Assist Service (FastAPI)** | `DONE` | `services/ai/main.py`<br>`services/ai/ocr.py`<br>`services/ai/rag.py`<br>`services/ai/risk_model.py`<br>`backend/src/services/ai-client.ts`<br>`backend/src/routes/ai.ts`<br>`docs/MODEL_CARD.md` | `services/ai/test_ai_service.py`<br>`backend/test/ai-service-fallback.test.ts` | Standalone FastAPI microservice providing OCR token extraction with confidence gates (< 0.85 requires human review), zero-hallucination Handbook RAG citing exact APH clauses, synthetic SLA breach risk prediction (`scikit-learn` pipeline with demo disclaimer), and Node backend client with 3-second timeout and offline graceful degradation. |
 | **Postgres Job Queue (`SKIP LOCKED`)** | `DONE` | `backend/src/services/job-queue.ts`<br>`backend/prisma/schema.prisma` | `backend/test/obligation-scheduler.test.ts` | Transaction-safe queue using PostgreSQL `FOR UPDATE SKIP LOCKED`. Unique constraint `(obligationId, ruleKey, threshold)` guarantees 0 duplicates on worker crashes. |
 
 ---
 
 ## 2. Summary of Build & Infrastructure Health
 
-- **Root Unit Tests (`npm test`)**: 12 test files, 82 passing tests (including 1,000 property-based random walk iterations, DB tamper tests, PostgreSQL RLS cross-region isolation, worker restart idempotency, discrepancy rules, trust ledger verifications, renewal superseding, and 2-tier release/rejection workflows).
+- **Root Unit Tests (`npm test`)**: 13 test files, 87 passing tests (including 1,000 property-based random walk iterations, DB tamper tests, PostgreSQL RLS cross-region isolation, worker restart idempotency, discrepancy rules, trust ledger verifications, renewal superseding, 2-tier release/rejection workflows, and AI service offline fallback resilience).
+- **Python AI Microservice Tests (`pytest`)**: 5 passing tests in `services/ai/test_ai_service.py`.
 - **Production Build (`npm run build`)**: 
   - `packages/shared`: PASSED.
   - `frontend`: PASSED.

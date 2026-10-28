@@ -37,14 +37,21 @@ export function requireRole(allowedRoles: Role[]) {
 }
 
 /**
- * Helper to produce row-level Prisma where clauses based on authenticated role.
+ * Helper to produce row-level Prisma where clauses based on authenticated role and region.
  */
-export function getScopedInstitutionFilter(user: TokenPayload): { institutionId?: string } {
+export function getScopedUserFilter(user: TokenPayload): { institutionId?: string; institution?: { region: string } } {
   if (user.role === 'INSTITUTION') {
     if (!user.institutionId) {
       throw new Error('Institution user must have an associated institutionId');
     }
     return { institutionId: user.institutionId };
   }
+  if ((user.role === 'OFFICER' || user.role === 'REGIONAL_OFFICER') && user.region) {
+    return { institution: { region: user.region } };
+  }
   return {};
+}
+
+export function getScopedInstitutionFilter(user: TokenPayload): { institutionId?: string; institution?: { region: string } } {
+  return getScopedUserFilter(user);
 }

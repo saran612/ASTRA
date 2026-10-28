@@ -3,6 +3,7 @@ import { z } from 'zod';
 import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, AuthenticatedRequest, getScopedInstitutionFilter } from '../middlewares/auth.js';
+import { withRlsContext } from '../services/rls.js';
 import { documentStore } from '../services/storage.js';
 import { FieldTrustService, CriticalFdrField } from '../services/trust.js';
 import { FdrLifecycleService } from '../services/fdr-lifecycle.js';
@@ -51,15 +52,27 @@ export function createFdrRouter(prisma: PrismaClient) {
       ];
     }
 
-    const fdrs = await prisma.fdr.findMany({
-      where,
-      include: {
-        institution: { select: { id: true, name: true, aicteId: true, region: true } },
-        discrepancies: { where: { status: 'OPEN' } },
-        fieldTrusts: true,
+    const user = req.user!;
+    const fdrs = await withRlsContext(
+      prisma,
+      {
+        id: user.userId,
+        role: user.role,
+        region: user.region,
+        institutionId: user.institutionId,
       },
-      orderBy: { createdAt: 'desc' },
-    });
+      async (tx) => {
+        return tx.fdr.findMany({
+          where,
+          include: {
+            institution: { select: { id: true, name: true, aicteId: true, region: true } },
+            discrepancies: { where: { status: 'OPEN' } },
+            fieldTrusts: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+    );
 
     return res.json(fdrs);
   });
@@ -68,26 +81,38 @@ export function createFdrRouter(prisma: PrismaClient) {
   router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
     const scope = getScopedInstitutionFilter(req.user!);
+    const user = req.user!;
 
-    const fdr = await prisma.fdr.findFirst({
-      where: { id, ...scope },
-      include: {
-        institution: true,
-        fieldTrusts: true,
-        documents: {
-          orderBy: { version: 'desc' },
-        },
-        discrepancies: {
-          orderBy: { ts: 'desc' },
-        },
-        events: {
-          orderBy: { ts: 'desc' },
-          include: { actor: { select: { id: true, email: true, role: true } } },
-        },
-        supersedesFdr: true,
-        supersededBy: true,
+    const fdr = await withRlsContext(
+      prisma,
+      {
+        id: user.userId,
+        role: user.role,
+        region: user.region,
+        institutionId: user.institutionId,
       },
-    });
+      async (tx) => {
+        return tx.fdr.findFirst({
+          where: { id, ...scope },
+          include: {
+            institution: true,
+            fieldTrusts: true,
+            documents: {
+              orderBy: { version: 'desc' },
+            },
+            discrepancies: {
+              orderBy: { ts: 'desc' },
+            },
+            events: {
+              orderBy: { ts: 'desc' },
+              include: { actor: { select: { id: true, email: true, role: true } } },
+            },
+            supersedesFdr: true,
+            supersededBy: true,
+          },
+        });
+      }
+    );
 
     if (!fdr) {
       return res.status(404).json({ error: 'FDR not found or unauthorized' });

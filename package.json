@@ -1,0 +1,23 @@
+{
+  "name": "fdr-vault-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "npm run --workspaces --if-present build",
+    "dev": "npm run dev --workspaces --parallel",
+    "test": "vitest run --no-file-parallelism",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "seed": "npm run seed --workspace=backend",
+    "eval": "npm run eval --workspace=backend"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

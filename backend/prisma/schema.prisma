@@ -1,0 +1,257 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  INSTITUTION
+  OFFICER
+  AUTHORITY
+  ADMIN
+}
+
+enum FdrStatus {
+  SUBMITTED
+  UNDER_SCRUTINY
+  DISCREPANCY
+  VERIFIED
+  ACTIVE
+  EXPIRING
+  RENEWED
+  LAPSED
+  RELEASE_REQUESTED
+  RELEASE_APPROVED
+  RELEASED
+}
+
+enum TrustSource {
+  INSTITUTION
+  OFFICER_ENTERED
+  BANK_CONFIRMED
+}
+
+enum DiscrepancySeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum DiscrepancyStatus {
+  OPEN
+  RESOLVED
+  WAIVED
+}
+
+enum BankVerificationStatus {
+  PENDING
+  CONFIRMED
+  MISMATCH
+  NO_RESPONSE
+}
+
+enum ReleaseRequestStatus {
+  PENDING_OFFICER
+  PENDING_AUTHORITY
+  APPROVED
+  REJECTED
+}
+
+model Institution {
+  id        String   @id @default(uuid())
+  name      String
+  aicteId   String   @unique
+  region    String
+  createdAt DateTime @default(now())
+
+  users     User[]
+  fdrs      Fdr[]
+}
+
+model User {
+  id            String       @id @default(uuid())
+  email         String       @unique
+  passwordHash  String
+  role          Role
+  institutionId String?
+  region        String?
+  createdAt     DateTime     @default(now())
+
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  documents     Document[]
+  fdrEvents     FdrEvent[]
+}
+
+model Fdr {
+  id              String      @id @default(uuid())
+  institutionId   String
+  fdrNo           String
+  bank            String
+  branch          String
+  ifsc            String
+  amount          Decimal     @db.Decimal(14, 2)
+  issueDate       DateTime
+  maturityDate    DateTime
+  status          FdrStatus   @default(SUBMITTED)
+  lienMarked      Boolean     @default(false)
+  supersedesFdrId String?     @unique
+  createdAt       DateTime    @default(now())
+
+  institution     Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  supersedesFdr   Fdr?         @relation("FdrRenewal", fields: [supersedesFdrId], references: [id])
+  supersededBy    Fdr?         @relation("FdrRenewal")
+
+  fieldTrusts     FdrFieldTrust[]
+  documents       Document[]
+  events          FdrEvent[]
+  discrepancies   Discrepancy[]
+  bankRequests    BankVerificationRequest[]
+  releaseRequests ReleaseRequest[]
+  alerts          Alert[]
+
+  @@index([bank, fdrNo])
+  @@index([institutionId])
+  @@index([status])
+  @@index([maturityDate])
+}
+
+model FdrFieldTrust {
+  id          String      @id @default(uuid())
+  fdrId       String
+  field       String
+  value       String
+  source      TrustSource
+  confirmedBy String?
+  confirmedAt DateTime?
+  updatedAt   DateTime    @updatedAt
+
+  fdr         Fdr         @relation(fields: [fdrId], references: [id], onDelete: Cascade)
+
+  @@unique([fdrId, field])
+}
+
+model Document {
+  id         String   @id @default(uuid())
+  fdrId      String
+  type       String   // e.g. "FDR_RECEIPT", "BANK_CONFIRMATION", "AFFIDAVIT"
+  storageKey String
+  sha256     String
+  version    Int      @default(1)
+  uploadedBy String
+  uploadedAt DateTime @default(now())
+
+  fdr        Fdr      @relation(fields: [fdrId], references: [id], onDelete: Cascade)
+  uploader   User     @relation(fields: [uploadedBy], references: [id])
+
+  @@index([fdrId])
+  @@index([sha256])
+}
+
+model FdrEvent {
+  id         String    @id @default(uuid())
+  fdrId      String
+  actorId    String
+  fromStatus FdrStatus
+  toStatus   FdrStatus
+  remarks    String?
+  meta       Json?     @default("{}")
+  ts         DateTime  @default(now())
+
+  fdr        Fdr       @relation(fields: [fdrId], references: [id], onDelete: Cascade)
+  actor      User      @relation(fields: [actorId], references: [id])
+
+  @@index([fdrId])
+  @@index([ts])
+}
+
+model Discrepancy {
+  id         String              @id @default(uuid())
+  fdrId      String
+  code       String
+  severity   DiscrepancySeverity
+  detail     String
+  status     DiscrepancyStatus   @default(OPEN)
+  raisedBy   String              // "SYSTEM" or user ID
+  resolvedBy String?
+  remarks    String?
+  ts         DateTime            @default(now())
+
+  fdr        Fdr                 @relation(fields: [fdrId], references: [id], onDelete: Cascade)
+
+  @@index([fdrId])
+  @@index([status])
+}
+
+model BankVerificationRequest {
+  id            String                 @id @default(uuid())
+  fdrId         String
+  status        BankVerificationStatus @default(PENDING)
+  sentAt        DateTime               @default(now())
+  responseDocId String?
+  respondedAt   DateTime?
+  meta          Json?                  @default("{}")
+
+  fdr           Fdr                    @relation(fields: [fdrId], references: [id], onDelete: Cascade)
+
+  @@index([fdrId])
+}
+
+model ReleaseRequest {
+  id                  String               @id @default(uuid())
+  fdrId               String
+  reason              String
+  status              ReleaseRequestStatus @default(PENDING_OFFICER)
+  checklist           Json                 @default("{}")
+  officerApprovedBy   String?
+  officerRemarks      String?
+  authorityApprovedBy String?
+  authorityRemarks    String?
+  ts                  DateTime             @default(now())
+
+  fdr                 Fdr                  @relation(fields: [fdrId], references: [id], onDelete: Cascade)
+
+  @@index([fdrId])
+}
+
+model Alert {
+  id            String    @id @default(uuid())
+  fdrId         String
+  ruleKey       String    // e.g. "EXPIRING_T90", "OVERDUE"
+  level         String    // "INFO", "WARNING", "CRITICAL"
+  recipientRole Role
+  recipientId   String?
+  dueDate       DateTime
+  firedAt       DateTime  @default(now())
+  ackedAt       DateTime?
+
+  fdr           Fdr       @relation(fields: [fdrId], references: [id], onDelete: Cascade)
+
+  @@unique([fdrId, ruleKey, recipientRole])
+  @@index([fdrId])
+  @@index([firedAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String
+  action    String
+  entity    String
+  entityId  String
+  payload   Json     @default("{}")
+  prevHash  String
+  hash      String
+  ts        DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([ts])
+}
+
+model RuleConfig {
+  key    String @id
+  value  Json
+  note   String
+  source String // e.g. "TODO: replace with AICTE handbook clause"
+}

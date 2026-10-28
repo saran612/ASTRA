@@ -127,12 +127,19 @@ export const FDR_TRANSITIONS: TransitionRule[] = [
     allowedRoles: ['AUTHORITY', 'BUREAU', 'ADMIN'],
     description: 'Competent authority grants final release/refund approval',
   },
-  // RELEASE_REQUESTED -> ACTIVE (rejection)
+  // RELEASE_REQUESTED -> ACTIVE (officer rejection)
   {
     from: 'RELEASE_REQUESTED',
     to: 'ACTIVE',
     allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'AUTHORITY', 'BUREAU', 'ADMIN'],
     description: 'Release request rejected, restoring FDR to active status',
+  },
+  // RELEASE_APPROVED -> ACTIVE (authority rejection)
+  {
+    from: 'RELEASE_APPROVED',
+    to: 'ACTIVE',
+    allowedRoles: ['AUTHORITY', 'BUREAU', 'ADMIN'],
+    description: 'Authority rejects release recommendation, restoring FDR to active status',
   },
 ];
 

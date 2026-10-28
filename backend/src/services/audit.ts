@@ -12,7 +12,9 @@ export function canonicalJson(obj: unknown): string {
   if (Array.isArray(obj)) {
     return `[${obj.map((item) => canonicalJson(item)).join(',')}]`;
   }
-  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const keys = Object.keys(obj as Record<string, unknown>)
+    .filter((key) => (obj as Record<string, unknown>)[key] !== undefined)
+    .sort();
   const entries = keys.map((key) => {
     const val = (obj as Record<string, unknown>)[key];
     return `${JSON.stringify(key)}:${canonicalJson(val)}`;

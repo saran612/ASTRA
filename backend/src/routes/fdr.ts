@@ -112,6 +112,9 @@ export function createFdrRouter(prisma: PrismaClient) {
             bankRequests: {
               orderBy: { sentAt: 'desc' },
             },
+            releaseRequests: {
+              orderBy: { ts: 'desc' },
+            },
           },
         });
       }

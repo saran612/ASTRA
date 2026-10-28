@@ -64,16 +64,24 @@ export class FdrLifecycleService {
         },
       });
 
+      // Find the true tip of the cryptographic audit chain
+      const tipResult = await tx.$queryRaw<Array<{ hash: string }>>`
+        SELECT hash FROM "AuditLog"
+        WHERE hash NOT IN (SELECT "prevHash" FROM "AuditLog")
+        LIMIT 1
+      `;
+      let runningPrevHash = tipResult.length > 0 ? tipResult[0].hash : GENESIS_HASH;
+
       // If replacement FDR reaches ACTIVE and has supersedesFdrId, transition old FDR to RENEWED
       if (toStatus === 'ACTIVE' && fdr.supersedesFdrId) {
         const oldFdr = await tx.fdr.findUnique({ where: { id: fdr.supersedesFdrId } });
-        if (oldFdr && ['EXPIRING', 'ACTIVE'].includes(oldFdr.status)) {
+        if (oldFdr && ['EXPIRING', 'ACTIVE', 'LAPSED'].includes(oldFdr.status)) {
           await tx.fdr.update({
             where: { id: oldFdr.id },
             data: { status: 'RENEWED' },
           });
 
-          await tx.fdrEvent.create({
+          const renewalEvent = await tx.fdrEvent.create({
             data: {
               fdrId: oldFdr.id,
               actorId: actor.id,
@@ -84,6 +92,38 @@ export class FdrLifecycleService {
               ts: now,
             },
           });
+
+          const oldPayload = {
+            fromStatus: oldFdr.status,
+            toStatus: 'RENEWED',
+            remarks: `Automatically marked RENEWED: superseded by new active FDR ${fdr.fdrNo}`,
+            meta: { successorFdrId: fdr.id },
+            eventId: renewalEvent.id,
+          };
+
+          const oldHash = computeAuditHash(runningPrevHash, {
+            actorId: actor.id,
+            action: 'FDR_STATUS_TRANSITION_RENEWED',
+            entity: 'Fdr',
+            entityId: oldFdr.id,
+            payload: oldPayload,
+            ts: now,
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actorId: actor.id,
+              action: 'FDR_STATUS_TRANSITION_RENEWED',
+              entity: 'Fdr',
+              entityId: oldFdr.id,
+              payload: oldPayload as Prisma.InputJsonValue,
+              prevHash: runningPrevHash,
+              hash: oldHash,
+              ts: now,
+            },
+          });
+
+          runningPrevHash = oldHash;
         }
       }
 
@@ -100,12 +140,6 @@ export class FdrLifecycleService {
         },
       });
 
-      // 5. Append to AuditLog hash chain
-      const lastAudit = await tx.auditLog.findFirst({
-        orderBy: { ts: 'desc' },
-      });
-      const prevHash = lastAudit ? lastAudit.hash : GENESIS_HASH;
-
       const payload = {
         fromStatus,
         toStatus,
@@ -114,7 +148,7 @@ export class FdrLifecycleService {
         eventId: event.id,
       };
 
-      const hash = computeAuditHash(prevHash, {
+      const hash = computeAuditHash(runningPrevHash, {
         actorId: actor.id,
         action: `FDR_STATUS_TRANSITION_${toStatus}`,
         entity: 'Fdr',
@@ -130,7 +164,7 @@ export class FdrLifecycleService {
           entity: 'Fdr',
           entityId: fdrId,
           payload: payload as Prisma.InputJsonValue,
-          prevHash,
+          prevHash: runningPrevHash,
           hash,
           ts: now,
         },
@@ -148,20 +182,28 @@ export class FdrLifecycleService {
    * Verify the cryptographic integrity of the entire audit log chain.
    */
   async verifyAuditChain(): Promise<{ valid: boolean; totalRows: number; corruptedAtId?: string }> {
-    const logs = await this.prisma.auditLog.findMany({
-      orderBy: { ts: 'asc' },
-    });
+    const logs = await this.prisma.auditLog.findMany();
+
+    if (logs.length === 0) {
+      return { valid: true, totalRows: 0 };
+    }
+
+    const byPrevHash = new Map<string, (typeof logs)[0]>();
+    for (const log of logs) {
+      if (byPrevHash.has(log.prevHash)) {
+        return { valid: false, totalRows: logs.length, corruptedAtId: log.id };
+      }
+      byPrevHash.set(log.prevHash, log);
+    }
 
     let currentExpectedPrevHash = GENESIS_HASH;
+    let visitedCount = 0;
+    const visitedIds = new Set<string>();
 
-    for (const log of logs) {
-      if (log.prevHash !== currentExpectedPrevHash) {
-        return {
-          valid: false,
-          totalRows: logs.length,
-          corruptedAtId: log.id,
-        };
-      }
+    while (byPrevHash.has(currentExpectedPrevHash)) {
+      const log = byPrevHash.get(currentExpectedPrevHash)!;
+      visitedCount++;
+      visitedIds.add(log.id);
 
       const recalculatedHash = computeAuditHash(log.prevHash, {
         actorId: log.actorId,
@@ -173,14 +215,23 @@ export class FdrLifecycleService {
       });
 
       if (recalculatedHash !== log.hash) {
-        return {
-          valid: false,
-          totalRows: logs.length,
-          corruptedAtId: log.id,
-        };
+        return { valid: false, totalRows: logs.length, corruptedAtId: log.id };
       }
 
       currentExpectedPrevHash = log.hash;
+    }
+
+    if (visitedCount !== logs.length) {
+      // Find the first unvisited row in chronological order
+      const unvisited = logs
+        .filter((l) => !visitedIds.has(l.id))
+        .sort((a, b) => a.ts.getTime() - b.ts.getTime());
+
+      return {
+        valid: false,
+        totalRows: logs.length,
+        corruptedAtId: unvisited[0]?.id,
+      };
     }
 
     return {

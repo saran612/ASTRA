@@ -16,7 +16,7 @@ export function createReleaseRouter(prisma: PrismaClient) {
   router.post(
     '/fdrs/:fdrId/request',
     requireAuth,
-    requireRole(['INSTITUTION', 'OFFICER', 'ADMIN']),
+    requireRole(['INSTITUTION', 'OFFICER', 'REGIONAL_OFFICER', 'ADMIN']),
     async (req: AuthenticatedRequest, res: Response) => {
       const { fdrId } = req.params;
       const parse = requestSchema.safeParse(req.body);
@@ -49,7 +49,7 @@ export function createReleaseRouter(prisma: PrismaClient) {
   router.post(
     '/requests/:id/officer-approve',
     requireAuth,
-    requireRole(['OFFICER', 'ADMIN']),
+    requireRole(['OFFICER', 'REGIONAL_OFFICER', 'ADMIN']),
     async (req: AuthenticatedRequest, res: Response) => {
       const { id } = req.params;
       const parse = officerSchema.safeParse(req.body);
@@ -77,14 +77,18 @@ export function createReleaseRouter(prisma: PrismaClient) {
   router.post(
     '/requests/:id/authority-approve',
     requireAuth,
-    requireRole(['AUTHORITY', 'ADMIN']),
+    requireRole(['AUTHORITY', 'BUREAU', 'ADMIN']),
     async (req: AuthenticatedRequest, res: Response) => {
       const { id } = req.params;
       const parse = authoritySchema.safeParse(req.body);
       if (!parse.success) return res.status(400).json({ error: 'Invalid payload' });
 
       try {
-        const result = await service.authorityApprove(id, req.user!.userId, parse.data.remarks);
+        const result = await service.authorityApprove(
+          id,
+          { id: req.user!.userId, role: req.user!.role },
+          parse.data.remarks
+        );
         return res.json({
           ...result,
           notice: 'Note: FDR Vault records and validates authorizations only. It does not disburse funds.',
@@ -103,7 +107,7 @@ export function createReleaseRouter(prisma: PrismaClient) {
   router.post(
     '/requests/:id/reject',
     requireAuth,
-    requireRole(['OFFICER', 'AUTHORITY', 'ADMIN']),
+    requireRole(['OFFICER', 'REGIONAL_OFFICER', 'AUTHORITY', 'BUREAU', 'ADMIN']),
     async (req: AuthenticatedRequest, res: Response) => {
       const { id } = req.params;
       const parse = rejectSchema.safeParse(req.body);

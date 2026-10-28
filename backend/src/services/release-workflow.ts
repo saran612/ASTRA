@@ -91,6 +91,15 @@ export class ReleaseWorkflowService {
       throw new Error('Cannot recommend release: All regulatory checklist items must be verified and checked.');
     }
 
+    // Verify no open discrepancies exist
+    const fdrWithDisc = await this.prisma.fdr.findUnique({
+      where: { id: req.fdrId },
+      include: { discrepancies: { where: { status: 'OPEN' } } },
+    });
+    if (fdrWithDisc && fdrWithDisc.discrepancies.length > 0) {
+      throw new Error('Cannot recommend release: FDR has open discrepancies that must be resolved first.');
+    }
+
     const updated = await this.prisma.releaseRequest.update({
       where: { id: requestId },
       data: {
@@ -116,9 +125,12 @@ export class ReleaseWorkflowService {
    */
   async authorityApprove(
     requestId: string,
-    authorityId: string,
+    authority: { id: string; role?: Role } | string,
     remarks?: string
   ) {
+    const authorityId = typeof authority === 'string' ? authority : authority.id;
+    const authorityRole = (typeof authority === 'object' && authority.role) ? authority.role : 'BUREAU';
+
     const req = await this.prisma.releaseRequest.findUnique({
       where: { id: requestId },
       include: { fdr: true },
@@ -141,7 +153,7 @@ export class ReleaseWorkflowService {
     await this.lifecycleService.transition({
       fdrId: req.fdrId,
       toStatus: 'RELEASED',
-      actor: { id: authorityId, role: 'AUTHORITY' },
+      actor: { id: authorityId, role: authorityRole as Role },
       remarks: remarks || 'Competent Authority final sign-off recorded. FDR released.',
       meta: {
         disclaimer: 'SYSTEM RECORDS AND ROUTES APPROVALS ONLY. DOES NOT DISBURSE FUNDS OR MOVE MONEY.',

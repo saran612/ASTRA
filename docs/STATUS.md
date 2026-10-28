@@ -23,7 +23,7 @@
 | **Dashboards & Views** | `PARTIAL` | `frontend/src/pages/DashboardPage.tsx`<br>`frontend/src/pages/OfficerQueuePage.tsx` | None (Manual UI only) | Overview metrics, urgency bands, and officer scrutiny queues exist. Missing role-differentiated views for Bureau vs Regional vs Committee, ageing/bottleneck analytics. |
 | **Reports & Data Export** | `PARTIAL` | `frontend/src/pages/FdrListPage.tsx` | None (Client-side export only) | CSV export generated in browser from tabular data. Missing server-side generated streaming CSV and PDF summary report. |
 | **Cryptographic Audit Trail** | `DONE` | `backend/src/services/audit.ts`<br>`backend/src/routes/audit.ts`<br>`backend/src/services/fdr-lifecycle.ts` | `backend/test/lifecycle.test.ts`<br>`backend/test/audit-tamper.test.ts` | `SHA256(prevHash + canonical_json(row))` hash chain implemented, verified via `GET /api/audit/verify` and `GET /api/admin/audit/verify`. Tamper test proves mutations and deleted rows are immediately detected. |
-| **RBAC & Scoping** | `PARTIAL` | `backend/src/middlewares/auth.ts`<br>`backend/src/services/auth.ts` | `backend/test/auth-scoping.test.ts` | Route middleware enforces 4 roles (`INSTITUTION`, `OFFICER`, `AUTHORITY`, `ADMIN`) and institution-level query filters. Missing: Postgres RLS enforcement, `COMMITTEE` role, cross-region leakage test suite. |
+| **RBAC & Scoping** | `DONE` | `backend/prisma/rls.sql`<br>`backend/src/services/rls.ts`<br>`backend/src/middlewares/auth.ts`<br>`backend/src/routes/fdr.ts` | `backend/test/cross-region-rls.test.ts`<br>`backend/test/auth-scoping.test.ts` | All 5 roles (`INSTITUTION`, `REGIONAL_OFFICER`, `BUREAU`, `COMMITTEE`, `ADMIN`) supported. PostgreSQL Row-Level Security policies enforced with `app_user` context. Cross-region access attempts verified to return 0 records / 404. |
 
 ### Deck-Promised Layer
 
@@ -49,13 +49,13 @@
 | 7 | **Maturity & Expiry Tracking with Escalation** | `PARTIAL` | `backend/src/services/deadline-engine.ts`<br>`backend/src/routes/admin.ts` | `backend/test/deadline-engine.test.ts` | Threshold detection (T-90, T-60, T-30, T-7, overdue) with alert deduplication tested. Missing: business-day holiday calendar and SMS gateway stub. |
 | 8 | **Renewal & Superseding Chain** | `DONE` | `backend/src/services/fdr-lifecycle.ts`<br>`backend/src/routes/fdr.ts` | `backend/test/renewal-release.test.ts` | Self-referencing Prisma relation (`supersedesFdrId`). When replacement FDR reaches `ACTIVE`, previous FDR is auto-transitioned to `RENEWED`. |
 | 9 | **Release & Refund Clearance Workflow** | `DONE` | `backend/src/services/release-workflow.ts`<br>`backend/src/routes/release.ts` | `backend/test/renewal-release.test.ts` | Two-tier release gating: Regional Officer checklist sign-off followed by Bureau Head final authorization. Explicitly labelled as authorization-only (no fund movement). |
-| 10 | **Audit Trail, RBAC & Administrative Controls** | `PARTIAL` | `backend/src/services/audit.ts`<br>`backend/src/services/clock.ts`<br>`backend/src/routes/admin.ts` | `backend/test/lifecycle.test.ts` | Hash-chained audit log and time-travel simulation engine work and pass tests. Missing: Postgres RLS, DB trigger immutability, tamper detection test, UI Audit Explorer. |
+| 10 | **Audit Trail, RBAC & Administrative Controls** | `DONE` | `backend/src/services/audit.ts`<br>`backend/prisma/rls.sql`<br>`backend/src/services/rls.ts`<br>`backend/src/services/clock.ts`<br>`backend/src/routes/admin.ts` | `backend/test/lifecycle.test.ts`<br>`backend/test/audit-tamper.test.ts`<br>`backend/test/cross-region-rls.test.ts` | Hash chain, DB-enforced RLS policies, time travel controls, and tamper detection verified. |
 
 ---
 
 ## 3. Summary of Build & Infrastructure Health
 
-- **Root Unit Tests (`npm test`)**: 9 test files, 48 passing tests (including 1,000 property-based random walk iterations and DB tamper tests).
+- **Root Unit Tests (`npm test`)**: 10 test files, 57 passing tests (including 1,000 property-based random walk iterations, DB tamper tests, and PostgreSQL RLS cross-region isolation).
 - **Production Build (`npm run build`)**: 
   - `packages/shared`: PASSED.
   - `frontend`: PASSED.

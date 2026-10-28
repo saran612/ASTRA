@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -13,6 +11,11 @@ services:
       - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fdr_vault"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # Prototype-only local SMTP server for alert escalation inspection
   mailhog:
@@ -20,10 +23,46 @@ services:
     container_name: fdr_vault_mailhog
     restart: unless-stopped
     ports:
-      - "1026:1025" # SMTP (prototype-only)
-      - "8026:8025" # Web UI (prototype-only)
+      - "1026:1025" # SMTP
+      - "8026:8025" # Web UI
 
-  # ASTRA AI microservice (OCR extraction, strict Handbook RAG, synthetic SLA breach risk)
+  # ASTRA Python / FastAPI Core Backend API
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fdr_vault_api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@postgres:5432/fdr_vault
+      SYNC_DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/fdr_vault
+      JWT_SECRET: astrasih26265supersecretjwtkeyforprototypeevaluation2026
+      REFRESH_TOKEN_SECRET: astrasih26265refreshtokensecretforprototypeevaluation2026
+      STORAGE_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      LOCAL_STORAGE_DIR: /tmp/fdr_vault_docs
+      AI_SERVICE_URL: http://ai:8000
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # React SPA Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fdr_vault_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  # ASTRA AI Microservice (FastAPI, OCR, Handbook RAG, SLA risk)
   ai:
     build:
       context: ./services/ai
@@ -34,5 +73,4 @@ services:
       - "8000:8000"
 
 volumes:
-
   pgdata:

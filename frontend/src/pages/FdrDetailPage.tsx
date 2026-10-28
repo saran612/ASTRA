@@ -41,6 +41,27 @@ export function FdrDetailPage() {
   });
 
   const isOfficerOrAdmin = ['OFFICER', 'REGIONAL_OFFICER', 'ADMIN', 'BUREAU'].includes(user?.role || '');
+  const isAuthorityOrAdmin = ['AUTHORITY', 'BUREAU', 'ADMIN'].includes(user?.role || '');
+
+  const [releaseActionLoading, setReleaseActionLoading] = useState(false);
+  const [releaseReqModal, setReleaseReqModal] = useState({ open: false, reason: '' });
+  const [officerApproveModal, setOfficerApproveModal] = useState({
+    open: false,
+    requestId: '',
+    checklist: {
+      courseClosureApproved: false,
+      noPendingAuditQueries: false,
+      noStudentGrievancePending: false,
+      originalFdReceiptSurrendered: false,
+      officerRecommendationSigned: false,
+    },
+    remarks: '',
+  });
+  const [rejectReleaseModal, setRejectReleaseModal] = useState({
+    open: false,
+    requestId: '',
+    reason: '',
+  });
 
   const loadFdr = async () => {
     try {
@@ -143,6 +164,87 @@ export function FdrDetailPage() {
       alert(`Manual confirmation failed: ${e.message}`);
     } finally {
       setBankActionLoading(false);
+    }
+  };
+
+  // Release Action Handlers
+  const handleInitiateRelease = async () => {
+    if (!releaseReqModal.reason) return;
+    setReleaseActionLoading(true);
+    try {
+      await apiRequest(`/api/release/fdrs/${fdr.id}/request`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: releaseReqModal.reason }),
+      });
+      setReleaseReqModal({ open: false, reason: '' });
+      await loadFdr();
+    } catch (e: any) {
+      alert(`Release request failed: ${e.message}`);
+    } finally {
+      setReleaseActionLoading(false);
+    }
+  };
+
+  const handleOfficerApproveRelease = async () => {
+    setReleaseActionLoading(true);
+    try {
+      await apiRequest(`/api/release/requests/${officerApproveModal.requestId}/officer-approve`, {
+        method: 'POST',
+        body: JSON.stringify({
+          checklist: officerApproveModal.checklist,
+          remarks: officerApproveModal.remarks,
+        }),
+      });
+      setOfficerApproveModal({
+        open: false,
+        requestId: '',
+        checklist: {
+          courseClosureApproved: false,
+          noPendingAuditQueries: false,
+          noStudentGrievancePending: false,
+          originalFdReceiptSurrendered: false,
+          officerRecommendationSigned: false,
+        },
+        remarks: '',
+      });
+      await loadFdr();
+    } catch (e: any) {
+      alert(`Officer sign-off failed: ${e.message}`);
+    } finally {
+      setReleaseActionLoading(false);
+    }
+  };
+
+  const handleAuthorityApproveRelease = async (requestId: string) => {
+    if (!confirm('Confirm final release authorization for this FDR? (Note: System records authorizations only; does not disburse funds)')) return;
+    setReleaseActionLoading(true);
+    try {
+      await apiRequest(`/api/release/requests/${requestId}/authority-approve`, {
+        method: 'POST',
+        body: JSON.stringify({ remarks: 'Final approval granted by Competent Authority' }),
+      });
+      await loadFdr();
+    } catch (e: any) {
+      alert(`Authority approval failed: ${e.message}`);
+    } finally {
+      setReleaseActionLoading(false);
+    }
+  };
+
+  const handleRejectRelease = async () => {
+    if (!rejectReleaseModal.reason) return;
+    setReleaseActionLoading(true);
+    try {
+      await apiRequest(`/api/release/requests/${rejectReleaseModal.requestId}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ rejectionReason: rejectReleaseModal.reason }),
+      });
+      setRejectReleaseModal({ open: false, requestId: '', reason: '' });
+      await loadFdr();
+    } catch (e: any) {
+      alert(`Rejection failed: ${e.message}`);
+    } finally {
+      setReleaseActionLoading(false);
     }
   };
 
@@ -459,6 +561,163 @@ export function FdrDetailPage() {
         )}
       </div>
 
+      {/* RELEASE & REFUND CLEARANCE LEDGER */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-purple-700" />
+              Two-Tier Release & Refund Clearance
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Statutory 2-tier approval workflow (Regional Scrutiny Checklist ➔ Bureau Authority Clearance).
+            </p>
+          </div>
+          <div className="text-[11px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded">
+            Disclaimer: FDR Vault records authorizations only; does not disburse funds.
+          </div>
+        </div>
+
+        {/* Current status display */}
+        {fdr.status === 'RELEASED' ? (
+          <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="text-sm font-black text-purple-900 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-purple-700" />
+                FDR RELEASE AUTHORIZED
+              </div>
+              <p className="text-xs text-purple-700 font-medium">
+                Both Regional Officer checklist verification and Competent Authority authorizations have been executed and logged into the cryptographic ledger.
+              </p>
+            </div>
+            <div className="px-3 py-1 bg-purple-800 text-white rounded text-xs font-black tracking-wider uppercase text-center shrink-0">
+              Authorized
+            </div>
+          </div>
+        ) : fdr.releaseRequests && fdr.releaseRequests.length > 0 ? (
+          <div className="space-y-3">
+            {fdr.releaseRequests.map((req: any) => (
+              <div
+                key={req.id}
+                className="p-3 bg-slate-50 rounded-lg border border-slate-200/70 space-y-2 text-xs"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-slate-800 flex items-center gap-2">
+                      <span>Release Request #{req.id.slice(0, 8)}</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                        req.status === 'APPROVED'
+                          ? 'bg-purple-100 text-purple-800'
+                          : req.status === 'REJECTED'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        [{req.status}]
+                      </span>
+                    </div>
+                    <div className="text-slate-600">Reason: {req.reason}</div>
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    {new Date(req.ts).toLocaleDateString('en-IN')}
+                  </div>
+                </div>
+
+                {req.officerRemarks && (
+                  <div className="text-[11px] text-slate-500 bg-white p-2 rounded border border-slate-200">
+                    <span className="font-semibold text-slate-700">Officer Remarks:</span> {req.officerRemarks}
+                  </div>
+                )}
+                {req.authorityRemarks && (
+                  <div className="text-[11px] text-slate-500 bg-white p-2 rounded border border-slate-200">
+                    <span className="font-semibold text-slate-700">Authority Remarks:</span> {req.authorityRemarks}
+                  </div>
+                )}
+
+                {/* Actions on this pending request */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {req.status === 'PENDING_OFFICER' && isOfficerOrAdmin && (
+                    <>
+                      <button
+                        onClick={() =>
+                          setOfficerApproveModal({
+                            open: true,
+                            requestId: req.id,
+                            checklist: {
+                              courseClosureApproved: false,
+                              noPendingAuditQueries: false,
+                              noStudentGrievancePending: false,
+                              originalFdReceiptSurrendered: false,
+                              officerRecommendationSigned: false,
+                            },
+                            remarks: '',
+                          })
+                        }
+                        className="px-3 py-1.5 text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white rounded transition shadow"
+                      >
+                        Complete Checklist & Recommend
+                      </button>
+                      <button
+                        onClick={() =>
+                          setRejectReleaseModal({
+                            open: true,
+                            requestId: req.id,
+                            reason: '',
+                          })
+                        }
+                        className="px-3 py-1.5 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded transition shadow"
+                      >
+                        Reject Request
+                      </button>
+                    </>
+                  )}
+
+                  {req.status === 'PENDING_AUTHORITY' && isAuthorityOrAdmin && (
+                    <>
+                      <button
+                        disabled={releaseActionLoading}
+                        onClick={() => handleAuthorityApproveRelease(req.id)}
+                        className="px-3 py-1.5 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded transition shadow disabled:opacity-50"
+                      >
+                        Grant Final Release Authorization
+                      </button>
+                      <button
+                        onClick={() =>
+                          setRejectReleaseModal({
+                            open: true,
+                            requestId: req.id,
+                            reason: '',
+                          })
+                        }
+                        className="px-3 py-1.5 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded transition shadow"
+                      >
+                        Reject Request
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs text-slate-400 py-2">
+            No release or refund clearance has been requested for this FDR.
+          </div>
+        )}
+
+        {/* Institution can initiate release if active/expiring/renewed */}
+        {['ACTIVE', 'EXPIRING', 'RENEWED'].includes(fdr.status) && (
+          <div className="pt-2">
+            <button
+              onClick={() => setReleaseReqModal({ open: true, reason: '' })}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white rounded-lg transition shadow"
+            >
+              <Send className="w-3.5 h-3.5" />
+              Request Release / Refund of Security Deposit
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* DISCREPANCIES SECTION */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -660,6 +919,205 @@ export function FdrDetailPage() {
                 className="px-4 py-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded transition shadow disabled:opacity-50"
               >
                 {bankActionLoading ? 'Recording...' : 'Confirm & Promote Trust'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* RELEASE REQUEST MODAL */}
+      {releaseReqModal.open && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
+            <h3 className="text-base font-bold text-slate-900">Initiate FDR Release / Refund Request</h3>
+            <p className="text-xs text-slate-600">
+              Provide formal regulatory justification for release (e.g., permanent closure of institution, substitution with approved bank guarantee, or completion of mandatory lock-in period).
+            </p>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Reason / Justification Notes
+              </label>
+              <textarea
+                required
+                rows={3}
+                value={releaseReqModal.reason}
+                onChange={(e) => setReleaseReqModal({ ...releaseReqModal, reason: e.target.value })}
+                placeholder="e.g. Permanent closure of technical courses approved by AICTE Executive Committee."
+                className="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={releaseActionLoading}
+                onClick={() => setReleaseReqModal({ open: false, reason: '' })}
+                className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={releaseActionLoading}
+                onClick={handleInitiateRelease}
+                className="px-4 py-1.5 text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white rounded transition shadow disabled:opacity-50"
+              >
+                {releaseActionLoading ? 'Submitting...' : 'Submit Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OFFICER CHECKLIST APPROVAL MODAL */}
+      {officerApproveModal.open && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl border border-slate-200">
+            <h3 className="text-base font-bold text-slate-900">Officer Regulatory Checklist Clearance</h3>
+            <p className="text-xs text-slate-600">
+              All 5 statutory conditions must be verified and checked before passing this recommendation to the Competent Authority.
+            </p>
+            <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs">
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={officerApproveModal.checklist.courseClosureApproved}
+                  onChange={(e) =>
+                    setOfficerApproveModal({
+                      ...officerApproveModal,
+                      checklist: { ...officerApproveModal.checklist, courseClosureApproved: e.target.checked },
+                    })
+                  }
+                  className="rounded text-purple-600 focus:ring-purple-500"
+                />
+                <span className="font-semibold text-slate-700">Course / Institution closure formally approved</span>
+              </label>
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={officerApproveModal.checklist.noPendingAuditQueries}
+                  onChange={(e) =>
+                    setOfficerApproveModal({
+                      ...officerApproveModal,
+                      checklist: { ...officerApproveModal.checklist, noPendingAuditQueries: e.target.checked },
+                    })
+                  }
+                  className="rounded text-purple-600 focus:ring-purple-500"
+                />
+                <span className="font-semibold text-slate-700">No pending CAG / Bureau audit queries</span>
+              </label>
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={officerApproveModal.checklist.noStudentGrievancePending}
+                  onChange={(e) =>
+                    setOfficerApproveModal({
+                      ...officerApproveModal,
+                      checklist: { ...officerApproveModal.checklist, noStudentGrievancePending: e.target.checked },
+                    })
+                  }
+                  className="rounded text-purple-600 focus:ring-purple-500"
+                />
+                <span className="font-semibold text-slate-700">No student grievance / fee refund dispute pending</span>
+              </label>
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={officerApproveModal.checklist.originalFdReceiptSurrendered}
+                  onChange={(e) =>
+                    setOfficerApproveModal({
+                      ...officerApproveModal,
+                      checklist: { ...officerApproveModal.checklist, originalFdReceiptSurrendered: e.target.checked },
+                    })
+                  }
+                  className="rounded text-purple-600 focus:ring-purple-500"
+                />
+                <span className="font-semibold text-slate-700">Original FDR physical receipt surrendered / verified</span>
+              </label>
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={officerApproveModal.checklist.officerRecommendationSigned}
+                  onChange={(e) =>
+                    setOfficerApproveModal({
+                      ...officerApproveModal,
+                      checklist: { ...officerApproveModal.checklist, officerRecommendationSigned: e.target.checked },
+                    })
+                  }
+                  className="rounded text-purple-600 focus:ring-purple-500"
+                />
+                <span className="font-semibold text-slate-700">Regional Officer recommendation signed & endorsed</span>
+              </label>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Scrutiny Officer Remarks
+              </label>
+              <textarea
+                rows={2}
+                value={officerApproveModal.remarks}
+                onChange={(e) => setOfficerApproveModal({ ...officerApproveModal, remarks: e.target.value })}
+                placeholder="e.g. Scrutinized records in order. Recommended for refund clearance."
+                className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={releaseActionLoading}
+                onClick={() => setOfficerApproveModal({ ...officerApproveModal, open: false })}
+                className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={releaseActionLoading}
+                onClick={handleOfficerApproveRelease}
+                className="px-4 py-1.5 text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white rounded transition shadow disabled:opacity-50"
+              >
+                {releaseActionLoading ? 'Endorsing...' : 'Endorse & Pass to Authority'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REJECT RELEASE MODAL */}
+      {rejectReleaseModal.open && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
+            <h3 className="text-base font-bold text-slate-900">Reject Release Request</h3>
+            <p className="text-xs text-slate-600">
+              Enter mandatory rejection reason. The FDR will be restored to <span className="font-bold text-emerald-700">ACTIVE</span> status.
+            </p>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Rejection Grounds
+              </label>
+              <textarea
+                required
+                rows={3}
+                value={rejectReleaseModal.reason}
+                onChange={(e) => setRejectReleaseModal({ ...rejectReleaseModal, reason: e.target.value })}
+                placeholder="e.g. Pending student refund dispute reported to Regional Office."
+                className="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={releaseActionLoading}
+                onClick={() => setRejectReleaseModal({ open: false, requestId: '', reason: '' })}
+                className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={releaseActionLoading}
+                onClick={handleRejectRelease}
+                className="px-4 py-1.5 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded transition shadow disabled:opacity-50"
+              >
+                {releaseActionLoading ? 'Rejecting...' : 'Confirm Rejection'}
               </button>
             </div>
           </div>

@@ -27,30 +27,28 @@ export function FdrListPage() {
     loadFdrs();
   }, [statusFilter, search]);
 
-  const handleExportCsv = () => {
-    if (fdrs.length === 0) return;
-    const headers = ['FDR No', 'Institution', 'Bank', 'Branch', 'IFSC', 'Amount', 'Issue Date', 'Maturity Date', 'Status', 'Lien Marked'];
-    const rows = fdrs.map((f) => [
-      f.fdrNo,
-      `"${f.institution?.name || ''}"`,
-      `"${f.bank}"`,
-      `"${f.branch}"`,
-      f.ifsc,
-      f.amount,
-      f.issueDate.slice(0, 10),
-      f.maturityDate.slice(0, 10),
-      f.status,
-      f.lienMarked ? 'YES' : 'NO',
-    ]);
+  const handleExportCsv = async () => {
+    try {
+      const token = localStorage.getItem('fdr_vault_token');
+      const queryParams = new URLSearchParams();
+      if (statusFilter) queryParams.set('status', statusFilter);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `AICTE_FDR_EXPORT_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const resp = await fetch(`/api/reports/fdrs/export.csv?${queryParams.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error('Export failed');
+      const blob = await resp.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AICTE_FDR_STREAMING_EXPORT_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(`Export failed: ${err.message}`);
+    }
   };
 
   const statusColors: Record<string, string> = {

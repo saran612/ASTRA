@@ -10,7 +10,10 @@ generator client {
 enum Role {
   INSTITUTION
   OFFICER
+  REGIONAL_OFFICER
   AUTHORITY
+  BUREAU
+  COMMITTEE
   ADMIN
 }
 

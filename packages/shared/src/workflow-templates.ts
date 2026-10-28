@@ -50,14 +50,14 @@ export const TEMPLATE_ONLY_SCRUTINY: RouteTemplate = {
     {
       from: 'SUBMITTED',
       to: 'UNDER_SCRUTINY',
-      allowedRoles: ['INSTITUTION', 'OFFICER', 'ADMIN'],
+      allowedRoles: ['INSTITUTION', 'OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
       description: 'FDR submitted and assigned to scrutiny queue',
       isAutoAdvance: true,
     },
     {
       from: 'UNDER_SCRUTINY',
       to: 'DISCREPANCY',
-      allowedRoles: ['OFFICER', 'ADMIN'],
+      allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
       description: 'Officer notes defect and returns for clarification/correction',
       isRevert: true,
       requiresReason: true,
@@ -71,13 +71,13 @@ export const TEMPLATE_ONLY_SCRUTINY: RouteTemplate = {
     {
       from: 'UNDER_SCRUTINY',
       to: 'VERIFIED',
-      allowedRoles: ['OFFICER', 'ADMIN'],
+      allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
       description: 'Officer certifies verified deposit upon valid bank confirmation',
     },
     {
       from: 'VERIFIED',
       to: 'ACTIVE',
-      allowedRoles: ['OFFICER', 'AUTHORITY', 'ADMIN'],
+      allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'AUTHORITY', 'BUREAU', 'ADMIN'],
       description: 'Deposit accepted as active security obligation',
       isAutoAdvance: true,
     },
@@ -91,7 +91,7 @@ export const TEMPLATE_ONLY_SCRUTINY: RouteTemplate = {
     {
       from: 'EXPIRING',
       to: 'RENEWED',
-      allowedRoles: ['OFFICER', 'AUTHORITY', 'ADMIN'],
+      allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'AUTHORITY', 'BUREAU', 'ADMIN'],
       description: 'Superseded by confirmed renewal instrument reaching ACTIVE status',
     },
     {
@@ -104,31 +104,31 @@ export const TEMPLATE_ONLY_SCRUTINY: RouteTemplate = {
     {
       from: 'ACTIVE',
       to: 'RELEASE_REQUESTED',
-      allowedRoles: ['INSTITUTION', 'OFFICER', 'ADMIN'],
+      allowedRoles: ['INSTITUTION', 'OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
       description: 'Institution initiates formal deposit release/refund request',
     },
     {
       from: 'EXPIRING',
       to: 'RELEASE_REQUESTED',
-      allowedRoles: ['INSTITUTION', 'OFFICER', 'ADMIN'],
+      allowedRoles: ['INSTITUTION', 'OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
       description: 'Institution initiates release request for expiring instrument',
     },
     {
       from: 'RENEWED',
       to: 'RELEASE_REQUESTED',
-      allowedRoles: ['INSTITUTION', 'OFFICER', 'ADMIN'],
+      allowedRoles: ['INSTITUTION', 'OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
       description: 'Institution requests release of superseded renewed deposit',
     },
     {
       from: 'RELEASE_REQUESTED',
       to: 'RELEASE_APPROVED',
-      allowedRoles: ['OFFICER', 'AUTHORITY', 'ADMIN'],
+      allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'AUTHORITY', 'BUREAU', 'COMMITTEE', 'ADMIN'],
       description: 'Scrutiny officer certifies completion of statutory obligations',
     },
     {
       from: 'RELEASE_REQUESTED',
       to: 'ACTIVE',
-      allowedRoles: ['OFFICER', 'AUTHORITY', 'ADMIN'],
+      allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'AUTHORITY', 'BUREAU', 'ADMIN'],
       description: 'Release request rejected or remanded back to active',
       isRevert: true,
       requiresReason: true,
@@ -136,7 +136,7 @@ export const TEMPLATE_ONLY_SCRUTINY: RouteTemplate = {
     {
       from: 'RELEASE_APPROVED',
       to: 'RELEASED',
-      allowedRoles: ['AUTHORITY', 'ADMIN'],
+      allowedRoles: ['AUTHORITY', 'BUREAU', 'ADMIN'],
       description: 'Bureau Head signs off final release/refund authorization',
     },
   ],

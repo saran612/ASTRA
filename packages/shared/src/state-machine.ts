@@ -24,14 +24,14 @@ export const FDR_TRANSITIONS: TransitionRule[] = [
   {
     from: 'SUBMITTED',
     to: 'UNDER_SCRUTINY',
-    allowedRoles: ['INSTITUTION', 'OFFICER', 'ADMIN'],
+    allowedRoles: ['INSTITUTION', 'OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
     description: 'FDR moves to scrutiny queue after submission',
   },
   // UNDER_SCRUTINY -> DISCREPANCY
   {
     from: 'UNDER_SCRUTINY',
     to: 'DISCREPANCY',
-    allowedRoles: ['OFFICER', 'ADMIN'],
+    allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
     description: 'Officer flags discrepancy requiring institution attention',
   },
   // DISCREPANCY -> UNDER_SCRUTINY
@@ -45,7 +45,7 @@ export const FDR_TRANSITIONS: TransitionRule[] = [
   {
     from: 'UNDER_SCRUTINY',
     to: 'VERIFIED',
-    allowedRoles: ['OFFICER', 'ADMIN'],
+    allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
     description: 'Officer marks FDR verified after bank confirmation received and no open high discrepancies',
     guard: (ctx) => {
       if (ctx.hasOpenDiscrepancies) {
@@ -58,7 +58,7 @@ export const FDR_TRANSITIONS: TransitionRule[] = [
   {
     from: 'VERIFIED',
     to: 'ACTIVE',
-    allowedRoles: ['OFFICER', 'AUTHORITY', 'ADMIN'],
+    allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'AUTHORITY', 'BUREAU', 'ADMIN'],
     description: 'FDR is formally accepted as active security deposit',
   },
   // ACTIVE -> EXPIRING
@@ -72,7 +72,7 @@ export const FDR_TRANSITIONS: TransitionRule[] = [
   {
     from: 'EXPIRING',
     to: 'RENEWED',
-    allowedRoles: ['OFFICER', 'AUTHORITY', 'ADMIN'],
+    allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'AUTHORITY', 'BUREAU', 'ADMIN'],
     description: 'Linked replacement FDR reaches ACTIVE status',
   },
   // EXPIRING -> LAPSED
@@ -86,7 +86,7 @@ export const FDR_TRANSITIONS: TransitionRule[] = [
   {
     from: 'ACTIVE',
     to: 'RELEASE_REQUESTED',
-    allowedRoles: ['INSTITUTION', 'OFFICER', 'ADMIN'],
+    allowedRoles: ['INSTITUTION', 'OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
     description: 'Institution requests release of active FDR',
     guard: (ctx) => {
       if (ctx.hasOpenDiscrepancies) {
@@ -98,20 +98,20 @@ export const FDR_TRANSITIONS: TransitionRule[] = [
   {
     from: 'EXPIRING',
     to: 'RELEASE_REQUESTED',
-    allowedRoles: ['INSTITUTION', 'OFFICER', 'ADMIN'],
+    allowedRoles: ['INSTITUTION', 'OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
     description: 'Institution requests release of expiring FDR',
   },
   {
     from: 'RENEWED',
     to: 'RELEASE_REQUESTED',
-    allowedRoles: ['INSTITUTION', 'OFFICER', 'ADMIN'],
+    allowedRoles: ['INSTITUTION', 'OFFICER', 'REGIONAL_OFFICER', 'ADMIN'],
     description: 'Institution requests release of superseded renewed FDR',
   },
   // RELEASE_REQUESTED -> RELEASE_APPROVED
   {
     from: 'RELEASE_REQUESTED',
     to: 'RELEASE_APPROVED',
-    allowedRoles: ['OFFICER', 'AUTHORITY', 'ADMIN'],
+    allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'AUTHORITY', 'BUREAU', 'COMMITTEE', 'ADMIN'],
     description: 'Officer provides first-level recommendation and checklist clearance',
     guard: (ctx) => {
       if (ctx.hasOpenDiscrepancies) {
@@ -124,14 +124,14 @@ export const FDR_TRANSITIONS: TransitionRule[] = [
   {
     from: 'RELEASE_APPROVED',
     to: 'RELEASED',
-    allowedRoles: ['AUTHORITY', 'ADMIN'],
+    allowedRoles: ['AUTHORITY', 'BUREAU', 'ADMIN'],
     description: 'Competent authority grants final release/refund approval',
   },
   // RELEASE_REQUESTED -> ACTIVE (rejection)
   {
     from: 'RELEASE_REQUESTED',
     to: 'ACTIVE',
-    allowedRoles: ['OFFICER', 'AUTHORITY', 'ADMIN'],
+    allowedRoles: ['OFFICER', 'REGIONAL_OFFICER', 'AUTHORITY', 'BUREAU', 'ADMIN'],
     description: 'Release request rejected, restoring FDR to active status',
   },
 ];

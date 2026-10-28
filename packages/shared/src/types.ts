@@ -1,4 +1,11 @@
-export type Role = 'INSTITUTION' | 'OFFICER' | 'AUTHORITY' | 'ADMIN';
+export type Role =
+  | 'INSTITUTION'
+  | 'OFFICER'
+  | 'REGIONAL_OFFICER'
+  | 'AUTHORITY'
+  | 'BUREAU'
+  | 'COMMITTEE'
+  | 'ADMIN';
 
 export type FdrStatus =
   | 'SUBMITTED'

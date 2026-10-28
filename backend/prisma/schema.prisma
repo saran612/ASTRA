@@ -72,6 +72,7 @@ model Institution {
 
   users     User[]
   fdrs      Fdr[]
+  obligations Obligation[]
 }
 
 model User {
@@ -114,6 +115,7 @@ model Fdr {
   bankRequests    BankVerificationRequest[]
   releaseRequests ReleaseRequest[]
   alerts          Alert[]
+  obligations     Obligation[]
 
   @@index([bank, fdrNo])
   @@index([institutionId])
@@ -257,4 +259,93 @@ model RuleConfig {
   value  Json
   note   String
   source String // e.g. "TODO: replace with AICTE handbook clause"
+}
+
+enum ObligationType {
+  FDR_VALIDITY
+  STAGE_SLA
+  UNDERTAKING
+  LEASE_DOC
+}
+
+enum ObligationStatus {
+  PENDING
+  ACTIVE
+  FULFILLED
+  BREACHED
+  LAPSED
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Obligation {
+  id            String           @id @default(uuid())
+  institutionId String
+  fdrId         String?
+  type          ObligationType
+  title         String
+  status        ObligationStatus @default(ACTIVE)
+  dueDate       DateTime
+  meta          Json?            @default("{}")
+  createdAt     DateTime         @default(now())
+
+  institution   Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  fdr           Fdr?             @relation(fields: [fdrId], references: [id], onDelete: Cascade)
+  jobs          SchedulerJob[]
+  dispatches    AlertDispatch[]
+
+  @@index([institutionId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+model SchedulerJob {
+  id            String    @id @default(uuid())
+  obligationId  String
+  ruleKey       String    // e.g. "T-90", "T-30", "T-7", "T-0", "T+N"
+  threshold     Int       // e.g. 90, 30, 7, 0, -10
+  targetRole    Role
+  channel       String    // "IN_APP", "SMTP", "SMS"
+  status        JobStatus @default(PENDING)
+  runAfter      DateTime
+  lockedAt      DateTime?
+  lockedBy      String?
+  attempts      Int       @default(0)
+  lastError     String?
+  createdAt     DateTime  @default(now())
+
+  obligation    Obligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+
+  @@unique([obligationId, ruleKey, threshold])
+  @@index([status, runAfter])
+}
+
+model AlertDispatch {
+  id           String   @id @default(uuid())
+  obligationId String
+  jobId        String?
+  ruleKey      String
+  threshold    Int
+  channel      String   // "IN_APP" | "SMTP" | "SMS"
+  recipient    String
+  level        String   // "INFO" | "WARNING" | "CRITICAL"
+  content      String
+  dispatchedAt DateTime @default(now())
+
+  obligation   Obligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+
+  @@unique([obligationId, ruleKey, threshold, channel])
+  @@index([obligationId])
+  @@index([dispatchedAt])
+}
+
+model HolidayCalendar {
+  date       DateTime @id
+  name       String
+  isGazetted Boolean  @default(true)
 }

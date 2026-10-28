@@ -27,3 +27,8 @@ export type DiscrepancyStatus = 'OPEN' | 'RESOLVED' | 'WAIVED';
 
 export type BankVerificationStatus = 'PENDING' | 'CONFIRMED' | 'MISMATCH' | 'NO_RESPONSE';
 export type ReleaseRequestStatus = 'PENDING_OFFICER' | 'PENDING_AUTHORITY' | 'APPROVED' | 'REJECTED';
+
+export type ObligationType = 'FDR_VALIDITY' | 'STAGE_SLA' | 'UNDERTAKING' | 'LEASE_DOC';
+export type ObligationStatus = 'PENDING' | 'ACTIVE' | 'FULFILLED' | 'BREACHED' | 'LAPSED';
+export type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+export type DispatchChannel = 'IN_APP' | 'SMTP' | 'SMS';

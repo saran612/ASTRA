@@ -11,7 +11,7 @@
 | **Seeded Defect Detection** | **1 / 7** (14%) | 100% of seeded rule defects | **PASS** (0 missed) |
 | **Cryptographic Hash Chain Integrity** | **VALID (100% INTACT)** | All `0` blocks match SHA-256 | **PASS** (Tamper-evident) |
 | **Deadline Scanner Idempotency** | **VERIFIED (0 duplicates on re-run)** | Idempotent PostgreSQL alert insertion | **PASS** |
-| **Automated Scrutiny Latency** | **15 ms** per deposit | $< 250$ ms per FDR | **PASS** |
+| **Automated Scrutiny Latency** | **26 ms** per deposit | $< 250$ ms per FDR | **PASS** |
 | **Scrutiny Time Reduction *[ASSUMPTION]*** | **~100.0%** | $> 95.0%$ procedural speedup | **PASS** |
 
 ---
@@ -68,7 +68,7 @@ Simulated forward shifts using the injectable `Clock` service to verify alert th
 ---
 
 ## 5. Performance Comparison: Automated Engine vs Manual Scrutiny Baseline
-- **Automated Engine**: **15 ms** per deposit record (measured).
+- **Automated Engine**: **26 ms** per deposit record (measured).
 - **Manual Baseline *[ASSUMPTION]***: **~15 minutes (900000 ms)** per deposit.
   > *[ASSUMPTION]*: Manual baseline is an analytical estimate based on standard scrutiny officer review time: inspecting physical fixed deposit paper copies, cross-referencing bank IFSC directories, manually checking previous registers for double-pledge, and calculating 3-year date spans.
 

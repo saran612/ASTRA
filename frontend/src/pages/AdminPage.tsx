@@ -155,6 +155,15 @@ export function AdminPage() {
               : `TAMPER DETECTED: Chain broken at record ID ${auditReport.corruptedAtId}`}
           </div>
         )}
+
+        <div className="pt-1 flex justify-end">
+          <a
+            href="/admin/audit"
+            className="text-xs text-indigo-700 hover:text-indigo-900 font-bold underline flex items-center gap-1"
+          >
+            Inspect Interactive Audit Explorer (/admin/audit) &rarr;
+          </a>
+        </div>
       </div>
 
       {/* RULES CONFIG EDITOR */}

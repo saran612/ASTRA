@@ -187,6 +187,20 @@ export function Layout() {
               Admin & Controls
             </Link>
           )}
+
+          {['ADMIN', 'AUTHORITY', 'BUREAU', 'OFFICER', 'REGIONAL_OFFICER', 'COMMITTEE'].includes(user.role) && (
+            <Link
+              to="/admin/audit"
+              className={`py-3 border-b-2 flex items-center gap-1.5 transition ${
+                location.pathname === '/admin/audit'
+                  ? 'border-aicte-700 text-aicte-700 font-bold'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <History className="w-4 h-4" />
+              Audit Explorer
+            </Link>
+          )}
         </div>
       </header>
 

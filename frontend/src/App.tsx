@@ -8,6 +8,7 @@ import { FdrDetailPage } from './pages/FdrDetailPage';
 import { NewFdrPage } from './pages/NewFdrPage';
 import { OfficerQueuePage } from './pages/OfficerQueuePage';
 import { AdminPage } from './pages/AdminPage';
+import { AuditExplorerPage } from './pages/AuditExplorerPage';
 import { getCurrentUser } from './api';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
@@ -39,6 +40,7 @@ export function App() {
           <Route path="fdrs/:id" element={<FdrDetailPage />} />
           <Route path="scrutiny" element={<OfficerQueuePage />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="admin/audit" element={<AuditExplorerPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

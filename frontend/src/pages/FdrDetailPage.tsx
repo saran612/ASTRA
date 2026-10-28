@@ -13,6 +13,8 @@ import {
   Send,
   CheckCircle2,
   XCircle,
+  UserCheck,
+  Upload,
 } from 'lucide-react';
 import { apiRequest, getCurrentUser } from '../api';
 
@@ -21,10 +23,24 @@ export function FdrDetailPage() {
   const user = getCurrentUser();
   const [fdr, setFdr] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [bankActionLoading, setBankActionLoading] = useState(false);
   const [resolveModal, setResolveModal] = useState<{ open: boolean; discrepancyId?: string; code?: string; severity?: string; remarks: string }>({
     open: false,
     remarks: '',
   });
+  const [manualConfirmModal, setManualConfirmModal] = useState<{
+    open: boolean;
+    requestId: string;
+    bankRemarks: string;
+    file: File | null;
+  }>({
+    open: false,
+    requestId: '',
+    bankRemarks: '',
+    file: null,
+  });
+
+  const isOfficerOrAdmin = ['OFFICER', 'REGIONAL_OFFICER', 'ADMIN', 'BUREAU'].includes(user?.role || '');
 
   const loadFdr = async () => {
     try {
@@ -59,6 +75,77 @@ export function FdrDetailPage() {
     }
   };
 
+  // Download Bank Inquiry Letter
+  const handleDownloadInquiryLetter = async (requestId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/bank-verification/${requestId}/template`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to generate letter');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Bank-Inquiry-Letter-${fdr.fdrNo}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(`Download failed: ${e.message}`);
+    }
+  };
+
+  // Initiate bank verification request
+  const handleRequestBankVerification = async (isMock: boolean) => {
+    setBankActionLoading(true);
+    try {
+      const res = await apiRequest(`/api/bank-verification/request/${fdr.id}${isMock ? '?mock=true' : ''}`, {
+        method: 'POST',
+      });
+      if (isMock) {
+        await apiRequest(`/api/bank-verification/${res.requestId}/mock-confirm`, {
+          method: 'POST',
+        });
+      }
+      await loadFdr();
+    } catch (e: any) {
+      alert(`Bank verification request failed: ${e.message}`);
+    } finally {
+      setBankActionLoading(false);
+    }
+  };
+
+  // Submit manual bank response confirmation
+  const handleManualBankConfirm = async () => {
+    if (!manualConfirmModal.requestId) return;
+    setBankActionLoading(true);
+    try {
+      const formData = new FormData();
+      if (manualConfirmModal.file) {
+        formData.append('replyDocument', manualConfirmModal.file);
+      }
+      formData.append('bankRemarks', manualConfirmModal.bankRemarks || 'Confirmed in order by branch manager');
+
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/bank-verification/${manualConfirmModal.requestId}/manual-confirm`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to record confirmation');
+      }
+      setManualConfirmModal({ open: false, requestId: '', bankRemarks: '', file: null });
+      await loadFdr();
+    } catch (e: any) {
+      alert(`Manual confirmation failed: ${e.message}`);
+    } finally {
+      setBankActionLoading(false);
+    }
+  };
+
   // Resolve discrepancy
   const handleResolveDiscrepancy = async () => {
     if (!resolveModal.discrepancyId) return;
@@ -90,6 +177,15 @@ export function FdrDetailPage() {
         <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-black bg-teal-100 text-teal-800 border border-teal-300">
           <ShieldCheck className="w-3 h-3 text-teal-700" />
           BANK_CONFIRMED
+        </span>
+      );
+    }
+
+    if (trust.source === 'OFFICER_ENTERED') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-bold bg-blue-100 text-blue-800 border border-blue-300">
+          <UserCheck className="w-3 h-3 text-blue-700" />
+          OFFICER_ENTERED
         </span>
       );
     }
@@ -245,6 +341,124 @@ export function FdrDetailPage() {
         </div>
       </div>
 
+      {/* BANK VERIFICATION & TRUST LEDGER PROMOTION */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-aicte-700" />
+              Bank Verification & Trust Ledger Promotion
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Promotion from <span className="font-semibold text-amber-700">CLAIMED</span> to{' '}
+              <span className="font-semibold text-teal-700">BANK_CONFIRMED</span> requires verified bank response.
+            </p>
+          </div>
+          {fdr.bankRequests && fdr.bankRequests.length > 0 && (
+            <span
+              className={`text-xs px-2.5 py-1 rounded font-black self-start sm:self-auto ${
+                fdr.bankRequests[0].status === 'CONFIRMED'
+                  ? 'bg-teal-100 text-teal-800 border border-teal-300'
+                  : 'bg-amber-100 text-amber-800 border border-amber-300'
+              }`}
+            >
+              Latest Request: {fdr.bankRequests[0].status}
+            </span>
+          )}
+        </div>
+
+        {/* Existing bank requests list */}
+        {fdr.bankRequests && fdr.bankRequests.length > 0 ? (
+          <div className="space-y-3">
+            {fdr.bankRequests.map((req: any) => (
+              <div
+                key={req.id}
+                className="p-3 bg-slate-50 rounded-lg border border-slate-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800">Request #{req.id.slice(0, 8)}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono">
+                      Sent: {new Date(req.sentAt).toLocaleDateString('en-IN')}
+                    </span>
+                    {req.respondedAt && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-mono">
+                        Responded: {new Date(req.respondedAt).toLocaleDateString('en-IN')}
+                      </span>
+                    )}
+                  </div>
+                  {req.meta?.bankRemarks && (
+                    <div className="text-slate-600 italic text-[11px]">
+                      Bank Remarks: {req.meta.bankRemarks}
+                    </div>
+                  )}
+                  {req.meta?.mode && (
+                    <div className="text-[10px] text-slate-400">
+                      Mode: {req.meta.mode} {req.meta.mode === 'MOCK_AUTOMATED' && '[DEMO MOCK]'}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleDownloadInquiryLetter(req.id)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 hover:bg-slate-100 rounded text-slate-700 transition"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-500" />
+                    Inquiry Letter
+                  </button>
+
+                  {req.status === 'PENDING' && isOfficerOrAdmin && (
+                    <button
+                      onClick={() =>
+                        setManualConfirmModal({
+                          open: true,
+                          requestId: req.id,
+                          bankRemarks: '',
+                          file: null,
+                        })
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded transition shadow"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Record Response
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs text-slate-400 py-2">
+            No bank verification inquiry has been initiated yet for this FDR.
+          </div>
+        )}
+
+        {/* Action buttons for Officers / Admins */}
+        {isOfficerOrAdmin && (
+          <div className="pt-2 flex flex-wrap items-center gap-3">
+            <button
+              disabled={bankActionLoading}
+              onClick={() => handleRequestBankVerification(false)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold bg-aicte-700 hover:bg-aicte-800 text-white rounded-lg transition shadow disabled:opacity-50"
+            >
+              <Send className="w-3.5 h-3.5" />
+              Initiate Manual Bank Inquiry
+            </button>
+
+            <button
+              disabled={bankActionLoading}
+              onClick={() => handleRequestBankVerification(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition shadow disabled:opacity-50"
+              title="One-click simulation for evaluation and demonstration"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Simulate Bank Confirmation [DEMO MOCK]
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* DISCREPANCIES SECTION */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -382,6 +596,70 @@ export function FdrDetailPage() {
                 className="px-4 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition shadow"
               >
                 Confirm Resolution
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MANUAL CONFIRM MODAL */}
+      {manualConfirmModal.open && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
+            <h3 className="text-base font-bold text-slate-900">Record Bank Confirmation Response</h3>
+            <p className="text-xs text-slate-600">
+              Attach the signed physical/scanned confirmation letter received from the issuing bank manager. All critical instrument fields will be promoted to{' '}
+              <span className="font-bold text-teal-700">BANK_CONFIRMED</span>.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Bank Response Document (PDF)
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf,image/*"
+                  onChange={(e) =>
+                    setManualConfirmModal({
+                      ...manualConfirmModal,
+                      file: e.target.files ? e.target.files[0] : null,
+                    })
+                  }
+                  className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Branch Manager Remarks / Reference
+                </label>
+                <textarea
+                  rows={3}
+                  value={manualConfirmModal.bankRemarks}
+                  onChange={(e) =>
+                    setManualConfirmModal({ ...manualConfirmModal, bankRemarks: e.target.value })
+                  }
+                  placeholder="e.g. Confirmed genuine instrument, lien marked in favour of AICTE in bank records."
+                  className="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={bankActionLoading}
+                onClick={() =>
+                  setManualConfirmModal({ open: false, requestId: '', bankRemarks: '', file: null })
+                }
+                className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={bankActionLoading}
+                onClick={handleManualBankConfirm}
+                className="px-4 py-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white rounded transition shadow disabled:opacity-50"
+              >
+                {bankActionLoading ? 'Recording...' : 'Confirm & Promote Trust'}
               </button>
             </div>
           </div>

@@ -48,7 +48,7 @@ export class ObligationEngine {
         title: input.title,
         dueDate: input.dueDate,
         status: 'ACTIVE',
-        meta: input.meta || {},
+        meta: (input.meta as any) || {},
         createdAt: Clock.now(),
       },
     });

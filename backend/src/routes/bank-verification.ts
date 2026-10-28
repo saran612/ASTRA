@@ -26,7 +26,7 @@ export function createBankVerificationRouter(prisma: PrismaClient) {
   router.post(
     '/request/:fdrId',
     requireAuth,
-    requireRole(['OFFICER', 'ADMIN']),
+    requireRole(['OFFICER', 'REGIONAL_OFFICER', 'ADMIN']),
     async (req: AuthenticatedRequest, res: Response) => {
       const { fdrId } = req.params;
       const isMock = req.query.mock === 'true';
@@ -77,7 +77,7 @@ export function createBankVerificationRouter(prisma: PrismaClient) {
   router.post(
     '/:id/manual-confirm',
     requireAuth,
-    requireRole(['OFFICER', 'ADMIN']),
+    requireRole(['OFFICER', 'REGIONAL_OFFICER', 'ADMIN']),
     upload.single('replyDocument'),
     async (req: AuthenticatedRequest, res: Response) => {
       const { id } = req.params;
@@ -140,7 +140,7 @@ export function createBankVerificationRouter(prisma: PrismaClient) {
   router.post(
     '/:id/mock-confirm',
     requireAuth,
-    requireRole(['OFFICER', 'ADMIN']),
+    requireRole(['OFFICER', 'REGIONAL_OFFICER', 'ADMIN']),
     async (req: AuthenticatedRequest, res: Response) => {
       const { id } = req.params;
       const request = await prisma.bankVerificationRequest.findUnique({

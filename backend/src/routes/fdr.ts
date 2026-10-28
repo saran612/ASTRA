@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
-import { requireAuth, AuthenticatedRequest, getScopedInstitutionFilter } from '../middlewares/auth.js';
+import { requireAuth, requireRole, AuthenticatedRequest, getScopedInstitutionFilter } from '../middlewares/auth.js';
 import { withRlsContext } from '../services/rls.js';
 import { documentStore } from '../services/storage.js';
 import { FieldTrustService, CriticalFdrField } from '../services/trust.js';
@@ -109,6 +109,9 @@ export function createFdrRouter(prisma: PrismaClient) {
             },
             supersedesFdr: true,
             supersededBy: true,
+            bankRequests: {
+              orderBy: { sentAt: 'desc' },
+            },
           },
         });
       }
@@ -282,6 +285,36 @@ export function createFdrRouter(prisma: PrismaClient) {
 
     return res.json({ downloadUrl, expiresInSeconds: 15 * 60 });
   });
+
+  // PATCH /api/fdrs/:id/field-trust (officer updates/scrutinizes a specific field)
+  router.patch(
+    '/:id/field-trust',
+    requireAuth,
+    requireRole(['OFFICER', 'REGIONAL_OFFICER', 'ADMIN']),
+    async (req: AuthenticatedRequest, res: Response) => {
+      const { id } = req.params;
+      const { field, value } = req.body;
+      if (!field || value === undefined) {
+        return res.status(400).json({ error: 'field and value are required' });
+      }
+
+      const fdr = await prisma.fdr.findUnique({ where: { id } });
+      if (!fdr) {
+        return res.status(404).json({ error: 'FDR not found' });
+      }
+
+      const updated = await trustService.confirmField(
+        id,
+        field as CriticalFdrField,
+        String(value),
+        'OFFICER_ENTERED',
+        req.user!.userId,
+        Clock.now()
+      );
+
+      return res.json(updated);
+    }
+  );
 
   return router;
 }

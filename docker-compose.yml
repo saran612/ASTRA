@@ -14,5 +14,14 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  # Prototype-only local SMTP server for alert escalation inspection
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: fdr_vault_mailhog
+    restart: unless-stopped
+    ports:
+      - "1026:1025" # SMTP (prototype-only)
+      - "8026:8025" # Web UI (prototype-only)
+
 volumes:
   pgdata:

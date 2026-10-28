@@ -124,8 +124,8 @@ export function createFdrRouter(prisma: PrismaClient) {
       const maturityDate = new Date(data.maturityDate);
 
       // Check unique (bank, fdrNo)
-      const existing = await prisma.fdr.findUnique({
-        where: { bank_fdrNo: { bank: data.bank, fdrNo: data.fdrNo } },
+      const existing = await prisma.fdr.findFirst({
+        where: { bank: data.bank, fdrNo: data.fdrNo },
       });
       if (existing) {
         return res.status(409).json({ error: `FDR ${data.fdrNo} from bank ${data.bank} is already recorded` });

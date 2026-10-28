@@ -3,7 +3,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
+import { Clock } from './services/clock.js';
 import { createAuthRouter } from './routes/auth.js';
+import { createFdrRouter, createDocumentDownloadRouter } from './routes/fdr.js';
+import { createDiscrepancyRouter } from './routes/discrepancies.js';
+import { createBankVerificationRouter } from './routes/bank-verification.js';
+import { createAdminRouter, createAlertRouter } from './routes/admin.js';
+import { createReleaseRouter } from './routes/release.js';
 
 export function createApp(prisma: PrismaClient) {
   const app = express();
@@ -31,7 +37,7 @@ export function createApp(prisma: PrismaClient) {
   app.use('/api/release', createReleaseRouter(prisma));
 
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', timestamp: Clock.now().toISOString() });
   });
 
   return app;

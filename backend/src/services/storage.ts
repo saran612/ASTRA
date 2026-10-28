@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { Clock } from './clock.js';
 
 export interface StoredDocumentMeta {
   storageKey: string;
@@ -89,7 +90,7 @@ export class LocalEncryptedDocumentStore implements DocumentStore {
   }
 
   generateSignedDownloadToken(documentId: string, expiresInMinutes: number = 15): string {
-    const expiresAt = Date.now() + expiresInMinutes * 60 * 1000;
+    const expiresAt = Clock.now().getTime() + expiresInMinutes * 60 * 1000;
     const data = `${documentId}:${expiresAt}`;
     const signature = crypto.createHmac('sha256', this.signingSecret).update(data).digest('hex');
     return Buffer.from(JSON.stringify({ documentId, expiresAt, signature })).toString('base64url');
@@ -99,7 +100,7 @@ export class LocalEncryptedDocumentStore implements DocumentStore {
     try {
       const decoded = JSON.parse(Buffer.from(token, 'base64url').toString('utf-8'));
       if (decoded.documentId !== documentId) return false;
-      if (Date.now() > decoded.expiresAt) return false;
+      if (Clock.now().getTime() > decoded.expiresAt) return false;
 
       const data = `${decoded.documentId}:${decoded.expiresAt}`;
       const expected = crypto.createHmac('sha256', this.signingSecret).update(data).digest('hex');

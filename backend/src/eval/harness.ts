@@ -121,8 +121,10 @@ ${alertRecords.map((r) => `| Day +${r.day} | \`${r.dateStr}\` | ${r.alertsFired}
 `;
 
   // Ensure output is placed at repo root /docs/EVAL_REPORT.md
-  const isSubdir = process.cwd().endsWith('backend') || process.cwd().endsWith('apps/api');
-  const reportPath = path.resolve(process.cwd(), isSubdir ? '../../docs/EVAL_REPORT.md' : 'docs/EVAL_REPORT.md');
+  const isOneLevel = process.cwd().endsWith('backend');
+  const isTwoLevel = process.cwd().endsWith('apps/api');
+  const relDocs = isOneLevel ? '../docs/EVAL_REPORT.md' : isTwoLevel ? '../../docs/EVAL_REPORT.md' : 'docs/EVAL_REPORT.md';
+  const reportPath = path.resolve(process.cwd(), relDocs);
   fs.writeFileSync(reportPath, report);
   console.log('Evaluation report generated at ' + reportPath);
 

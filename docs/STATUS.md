@@ -16,13 +16,13 @@
 
 | Feature | Status | Primary Implementation File(s) | Proving Test File(s) | Notes & Deficiencies |
 | :--- | :--- | :--- | :--- | :--- |
-| **FDR Lifecycle State Machine** (Submit, Scrutiny, Verified, Active, Expiring, Renewed, Lapsed, Release) | `DONE` | `packages/shared/src/state-machine.ts`<br>`backend/src/services/fdr-lifecycle.ts`<br>`backend/src/services/release-workflow.ts` | `backend/test/lifecycle.test.ts`<br>`backend/test/renewal-release.test.ts` | Single guarded `transition()` function with append-only `FdrEvent` and audit ledger. Random-walk property test needed in Milestone 2. |
+| **FDR Lifecycle State Machine** (Submit, Scrutiny, Verified, Active, Expiring, Renewed, Lapsed, Release) | `DONE` | `packages/shared/src/state-machine.ts`<br>`packages/shared/src/workflow-templates.ts`<br>`backend/src/services/fdr-lifecycle.ts`<br>`backend/src/services/release-workflow.ts` | `backend/test/lifecycle.test.ts`<br>`backend/test/workflow-property.test.ts`<br>`backend/test/renewal-release.test.ts` | Guarded `transition()` with append-only `FdrEvent` and audit ledger. Verified via 1,000-iteration random-walk property tests. |
 | **Claimed vs Verified Trust Ledger** (`INSTITUTION`, `OFFICER_ENTERED`, `BANK_CONFIRMED`) | `DONE` | `backend/src/services/trust.ts`<br>`frontend/src/pages/FdrDetailPage.tsx` | `backend/test/storage-trust.test.ts` | Tracks field-level provenance across 8 critical FDR fields; officer verify flips badge to `BANK_CONFIRMED`. |
 | **Discrepancy Rule Engine** (Missing fields, invalid dates, short validity, slab mismatch, IFSC mismatch, duplicate FDR, duplicate doc hash, missing lien) | `DONE` | `backend/src/services/discrepancy-rules.ts`<br>`backend/src/services/discrepancy-service.ts` | `backend/test/discrepancy-rules.test.ts` | 6 seeded synthetic rules verified with 100% precision/recall against catalogued defects. Slabs marked `TODO(AICTE handbook)`. |
 | **Deadline & Escalation Engine** | `PARTIAL` | `backend/src/services/deadline-engine.ts`<br>`backend/src/routes/admin.ts` | `backend/test/deadline-engine.test.ts` | In-memory scan fires T-90, T-60, T-30, T-7, overdue alerts with compound index deduplication. Missing: Postgres `SKIP LOCKED` job queue, holiday calendar, and SMS stub. |
 | **Dashboards & Views** | `PARTIAL` | `frontend/src/pages/DashboardPage.tsx`<br>`frontend/src/pages/OfficerQueuePage.tsx` | None (Manual UI only) | Overview metrics, urgency bands, and officer scrutiny queues exist. Missing role-differentiated views for Bureau vs Regional vs Committee, ageing/bottleneck analytics. |
 | **Reports & Data Export** | `PARTIAL` | `frontend/src/pages/FdrListPage.tsx` | None (Client-side export only) | CSV export generated in browser from tabular data. Missing server-side generated streaming CSV and PDF summary report. |
-| **Cryptographic Audit Trail** | `PARTIAL` | `backend/src/services/audit.ts`<br>`backend/src/services/fdr-lifecycle.ts` | `backend/test/lifecycle.test.ts` | `SHA256(prevHash + canonical_json(row))` hash chain implemented and verified. Missing: DB-level append-only triggers, tamper-detection test suite, and dedicated Audit Explorer UI. |
+| **Cryptographic Audit Trail** | `DONE` | `backend/src/services/audit.ts`<br>`backend/src/routes/audit.ts`<br>`backend/src/services/fdr-lifecycle.ts` | `backend/test/lifecycle.test.ts`<br>`backend/test/audit-tamper.test.ts` | `SHA256(prevHash + canonical_json(row))` hash chain implemented, verified via `GET /api/audit/verify` and `GET /api/admin/audit/verify`. Tamper test proves mutations and deleted rows are immediately detected. |
 | **RBAC & Scoping** | `PARTIAL` | `backend/src/middlewares/auth.ts`<br>`backend/src/services/auth.ts` | `backend/test/auth-scoping.test.ts` | Route middleware enforces 4 roles (`INSTITUTION`, `OFFICER`, `AUTHORITY`, `ADMIN`) and institution-level query filters. Missing: Postgres RLS enforcement, `COMMITTEE` role, cross-region leakage test suite. |
 
 ### Deck-Promised Layer
@@ -30,7 +30,7 @@
 | Feature | Status | Primary Implementation File(s) | Proving Test File(s) | Notes & Deficiencies |
 | :--- | :--- | :--- | :--- | :--- |
 | **Unified Obligation Engine** (FDR validity, `STAGE_SLA`, `UNDERTAKING`, `LEASE_DOC`) | `MISSING` | None | None | Currently only FDR maturity deadlines exist. No generic obligation table, polymorphic obligation types, or unified scheduler. |
-| **Config-Driven Workflow Engine** (Route templates `ONLY_SCRUTINY`, `SCRUTINY_EVC`, `EVC_SAC_SHC`, `ONLY_EVC`, re-scrutiny loop, reason for revert) | `MISSING` | None | None | States and allowed transitions are hardcoded in `state-machine.ts` enum graph instead of versioned JSON route templates. |
+| **Config-Driven Workflow Engine** (Route templates `ONLY_SCRUTINY`, `SCRUTINY_EVC`, `EVC_SAC_SHC`, `ONLY_EVC`, re-scrutiny loop, reason for revert) | `DONE` | `packages/shared/src/workflow-templates.ts`<br>`packages/shared/src/state-machine.ts` | `backend/test/workflow-property.test.ts` | 4 versioned route templates defined with mandatory revert justifications and discrepancy blockers, verified via 1,000 random-walk property tests. |
 | **AI Assist Service (FastAPI)** | `MISSING` | None | None | No `services/ai` directory. No OCR date/field extraction, no RAG report over handbook clauses citing `{clause_id}`, no SLA-breach risk LightGBM/scikit-learn model. |
 | **Postgres Job Queue (`SKIP LOCKED`)** | `MISSING` | None | None | Deadline scan currently runs on synchronous API call or simple interval. Needs dedicated `jobs` table with `FOR UPDATE SKIP LOCKED`. |
 
@@ -55,7 +55,7 @@
 
 ## 3. Summary of Build & Infrastructure Health
 
-- **Root Unit Tests (`npm test`)**: 7 test files, 41 passing tests.
+- **Root Unit Tests (`npm test`)**: 9 test files, 48 passing tests (including 1,000 property-based random walk iterations and DB tamper tests).
 - **Production Build (`npm run build`)**: 
   - `packages/shared`: PASSED.
   - `frontend`: PASSED.

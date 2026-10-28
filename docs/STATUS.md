@@ -24,8 +24,8 @@
 | **Release / Refund Clearance Workflow** | `DONE` | `backend/src/services/release-workflow.ts`<br>`backend/src/routes/release.ts`<br>`frontend/src/pages/FdrDetailPage.tsx` | `backend/test/renewal-release.test.ts` | Two-tier statutory release gating: 5-point checklist sign-off by Regional Officer, final authorization by Bureau Authority, discrepancy blockers, rejection fallback to `ACTIVE`, and explicit disclaimer (*"FDR Vault records authorizations only; does not disburse funds"*). |
 | **Cryptographic Audit Trail** | `DONE` | `backend/src/services/audit.ts`<br>`backend/src/routes/audit.ts`<br>`backend/src/services/fdr-lifecycle.ts` | `backend/test/lifecycle.test.ts`<br>`backend/test/audit-tamper.test.ts`<br>`backend/test/renewal-release.test.ts` | `SHA256(prevHash + canonical_json(row))` hash chain implemented, verified via `GET /api/audit/verify` and `GET /api/admin/audit/verify`. Pointer-based verification detects payload tampering and deleted records. |
 | **RBAC & Scoping** | `DONE` | `backend/prisma/rls.sql`<br>`backend/src/services/rls.ts`<br>`backend/src/middlewares/auth.ts`<br>`backend/src/routes/fdr.ts` | `backend/test/cross-region-rls.test.ts`<br>`backend/test/auth-scoping.test.ts` | All 5 roles (`INSTITUTION`, `REGIONAL_OFFICER`, `BUREAU`, `COMMITTEE`, `ADMIN`) supported. PostgreSQL Row-Level Security policies enforced with `app_user` context. Cross-region access attempts verified to return 0 records / 404. |
-| **Dashboards & Views** | `PARTIAL` | `frontend/src/pages/DashboardPage.tsx`<br>`frontend/src/pages/OfficerQueuePage.tsx` | None (Manual UI only) | Overview metrics, urgency bands, and officer scrutiny queues exist. Missing role-differentiated views for Bureau vs Regional vs Committee, ageing/bottleneck analytics. |
-| **Reports & Data Export** | `PARTIAL` | `frontend/src/pages/FdrListPage.tsx` | None (Client-side export only) | CSV export generated in browser from tabular data. Missing server-side generated streaming CSV and PDF summary report. |
+| **Dashboards & Views** | `DONE` | `frontend/src/pages/DashboardPage.tsx`<br>`frontend/src/pages/OfficerQueuePage.tsx` | `backend/test/reports-export-audit.test.ts` | Role-differentiated executive dashboard tailored specifically for Regional Officers (scrutiny queues & revert alerts), Bureau/Authority (pan-India liquidity, maturity horizons 30/60/90d, release approval worklists), Committee (statutory hearing escalations & proposed forfeitures), Institutions (deposit countdowns & renewal upload CTA), and Admins. |
+| **Reports & Data Export** | `DONE` | `backend/src/routes/reports.ts`<br>`frontend/src/pages/FdrListPage.tsx` | `backend/test/reports-export-audit.test.ts` | Server-side streaming RFC 4180 CSV export endpoint (`GET /api/reports/fdrs/export.csv`) with RBAC scoping and multi-attribute filters (status, region, bank, maturityWindow). Verified with 105+ streaming rows. |
 
 ### Deck-Promised Layer
 
@@ -40,7 +40,7 @@
 
 ## 2. Summary of Build & Infrastructure Health
 
-- **Root Unit Tests (`npm test`)**: 13 test files, 87 passing tests (including 1,000 property-based random walk iterations, DB tamper tests, PostgreSQL RLS cross-region isolation, worker restart idempotency, discrepancy rules, trust ledger verifications, renewal superseding, 2-tier release/rejection workflows, and AI service offline fallback resilience).
+- **Root Unit Tests (`npm test`)**: 14 test files, 90 passing tests (including 1,000 property-based random walk iterations, DB tamper tests, PostgreSQL RLS cross-region isolation, worker restart idempotency, discrepancy rules, trust ledger verifications, renewal superseding, 2-tier release/rejection workflows, AI service offline fallback resilience, and streaming RFC 4180 CSV export).
 - **Python AI Microservice Tests (`pytest`)**: 5 passing tests in `services/ai/test_ai_service.py`.
 - **Production Build (`npm run build`)**: 
   - `packages/shared`: PASSED.

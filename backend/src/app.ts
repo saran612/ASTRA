@@ -10,6 +10,7 @@ import { createDiscrepancyRouter } from './routes/discrepancies.js';
 import { createBankVerificationRouter } from './routes/bank-verification.js';
 import { createAdminRouter, createAlertRouter } from './routes/admin.js';
 import { createReleaseRouter } from './routes/release.js';
+import { createAuditRouter } from './routes/audit.js';
 
 export function createApp(prisma: PrismaClient) {
   const app = express();
@@ -35,6 +36,7 @@ export function createApp(prisma: PrismaClient) {
   app.use('/api/admin', createAdminRouter(prisma));
   app.use('/api/alerts', createAlertRouter(prisma));
   app.use('/api/release', createReleaseRouter(prisma));
+  app.use('/api/audit', createAuditRouter(prisma));
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: Clock.now().toISOString() });

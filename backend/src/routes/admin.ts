@@ -80,6 +80,17 @@ export function createAdminRouter(prisma: PrismaClient) {
     }
   );
 
+  // GET /api/admin/audit/verify
+  router.get(
+    '/audit/verify',
+    requireAuth,
+    requireRole(['ADMIN', 'AUTHORITY']),
+    async (_req: AuthenticatedRequest, res: Response) => {
+      const report = await lifecycle.verifyAuditChain();
+      return res.json(report);
+    }
+  );
+
   // GET /api/admin/rules
   router.get('/rules', requireAuth, requireRole(['ADMIN']), async (_req: AuthenticatedRequest, res: Response) => {
     const rules = await prisma.ruleConfig.findMany();

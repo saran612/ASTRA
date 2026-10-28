@@ -15,6 +15,8 @@ import {
   XCircle,
   UserCheck,
   Upload,
+  Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import { apiRequest, getCurrentUser } from '../api';
 
@@ -23,6 +25,13 @@ export function FdrDetailPage() {
   const user = getCurrentUser();
   const [fdr, setFdr] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // AI Copilot States
+  const [slaRisk, setSlaRisk] = useState<any>(null);
+  const [slaRiskLoading, setSlaRiskLoading] = useState(false);
+  const [ragQuery, setRagQuery] = useState('');
+  const [ragResult, setRagResult] = useState<any>(null);
+  const [ragLoading, setRagLoading] = useState(false);
   const [bankActionLoading, setBankActionLoading] = useState(false);
   const [resolveModal, setResolveModal] = useState<{ open: boolean; discrepancyId?: string; code?: string; severity?: string; remarks: string }>({
     open: false,
@@ -63,10 +72,66 @@ export function FdrDetailPage() {
     reason: '',
   });
 
+  const loadSlaRisk = async (fdrData: any) => {
+    setSlaRiskLoading(true);
+    try {
+      const now = new Date().getTime();
+      const maturity = new Date(fdrData.maturityDate).getTime();
+      const daysRemaining = Math.max(0, Math.round((maturity - now) / (1000 * 60 * 60 * 24)));
+      const created = new Date(fdrData.createdAt).getTime();
+      const daysInScrutiny = Math.max(1, Math.round((now - created) / (1000 * 60 * 60 * 24)));
+      const revertCount = fdrData.history?.filter((h: any) => h.toState?.includes('REVERT') || h.action?.includes('REVERT')).length || 0;
+      const discrepancyCount = fdrData.discrepancies?.filter((d: any) => d.status === 'OPEN').length || 0;
+
+      const risk = await apiRequest('/api/ai/risk', {
+        method: 'POST',
+        body: JSON.stringify({
+          daysRemaining,
+          revertCount,
+          discrepancyCount,
+          daysInScrutiny,
+          amount: Number(fdrData.amount),
+        }),
+      });
+      setSlaRisk(risk);
+    } catch {
+      setSlaRisk({
+        riskCategory: 'UNKNOWN',
+        slaRiskScore: 0.0,
+        topRiskFactors: ['AI risk model offline'],
+        disclaimer: 'Synthetic training data, demo only (Offline Fallback)',
+        isOfflineFallback: true,
+      });
+    } finally {
+      setSlaRiskLoading(false);
+    }
+  };
+
+  const handleHandbookQuery = async (queryText: string) => {
+    if (!queryText.trim()) return;
+    setRagLoading(true);
+    try {
+      const res = await apiRequest('/api/ai/rag', {
+        method: 'POST',
+        body: JSON.stringify({ query: queryText }),
+      });
+      setRagResult(res);
+    } catch {
+      setRagResult({
+        found: false,
+        answer: 'AI assistance unavailable; consult physical Approval Process Handbook. Manual verification required.',
+        isOfflineFallback: true,
+      });
+    } finally {
+      setRagLoading(false);
+    }
+  };
+
   const loadFdr = async () => {
     try {
       const data = await apiRequest(`/api/fdrs/${id}`);
       setFdr(data);
+      loadSlaRisk(data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -440,6 +505,153 @@ export function FdrDetailPage() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* AI COMPLIANCE COPILOT & SLA RISK PREDICTOR */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-600" />
+              AI Compliance Copilot (SLA Breach Risk & Handbook Assistant)
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Assists scrutiny officers with synthetic SLA risk forecasting and zero-hallucination handbook citations.
+            </p>
+          </div>
+          {slaRisk && (
+            <span
+              className={`text-xs px-2.5 py-1 rounded font-black self-start sm:self-auto border ${
+                slaRisk.riskCategory === 'CRITICAL'
+                  ? 'bg-red-100 text-red-800 border-red-300'
+                  : slaRisk.riskCategory === 'HIGH'
+                  ? 'bg-orange-100 text-orange-800 border-orange-300'
+                  : slaRisk.riskCategory === 'MEDIUM'
+                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  : slaRisk.riskCategory === 'LOW'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : 'bg-slate-100 text-slate-700 border-slate-300'
+              }`}
+            >
+              SLA Risk: {slaRisk.riskCategory} ({Math.round((slaRisk.slaRiskScore || 0) * 100)}%)
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          {/* Left: SLA Breach Risk Breakdown */}
+          <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200/70 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                SLA Breach Risk Factor Breakdown
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono italic">
+                {slaRisk?.disclaimer || 'Synthetic training data, demo only'}
+              </span>
+            </div>
+
+            {slaRiskLoading ? (
+              <div className="text-slate-400 text-xs py-3">Evaluating procedural signals...</div>
+            ) : slaRisk?.isOfflineFallback ? (
+              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[11px]">
+                AI risk model offline; monitoring using standard deadline timers.
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {slaRisk?.topRiskFactors?.map((factor: string, idx: number) => (
+                  <div key={idx} className="flex items-start gap-1.5 text-[11px] text-slate-700">
+                    <span className="text-indigo-600 font-bold">•</span>
+                    <span>{factor}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right: Zero-Hallucination Handbook Assistant */}
+          <div className="p-3.5 bg-indigo-50/50 rounded-lg border border-indigo-100 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-indigo-900 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-indigo-700" />
+                Handbook RAG Assistant (APH 2024-27)
+              </span>
+              <span className="text-[10px] text-indigo-600 font-medium">Strict Citations</span>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={ragQuery}
+                onChange={(e) => setRagQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleHandbookQuery(ragQuery)}
+                placeholder="Ask handbook question (e.g., tenure, release checklist)..."
+                className="w-full px-2.5 py-1.5 bg-white border border-indigo-200 rounded text-xs focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => handleHandbookQuery(ragQuery)}
+                disabled={ragLoading || !ragQuery.trim()}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded shadow-sm text-xs transition disabled:opacity-50 shrink-0"
+              >
+                {ragLoading ? 'Querying...' : 'Ask'}
+              </button>
+            </div>
+
+            {/* Quick Prompt Chips */}
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setRagQuery('lock-in tenure for new institutions');
+                  handleHandbookQuery('lock-in tenure for new institutions');
+                }}
+                className="text-[10px] bg-white border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded hover:bg-indigo-100 transition"
+              >
+                Tenure Period?
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRagQuery('refund and release 5-point checklist');
+                  handleHandbookQuery('refund and release 5-point checklist');
+                }}
+                className="text-[10px] bg-white border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded hover:bg-indigo-100 transition"
+              >
+                Release Checklist?
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRagQuery('joint lien marking bank books');
+                  handleHandbookQuery('joint lien marking bank books');
+                }}
+                className="text-[10px] bg-white border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded hover:bg-indigo-100 transition"
+              >
+                Lien Rules?
+              </button>
+            </div>
+
+            {/* RAG Answer Display */}
+            {ragResult && (
+              <div
+                className={`p-2.5 rounded border text-[11px] leading-relaxed ${
+                  ragResult.found
+                    ? 'bg-white border-indigo-200 text-slate-800'
+                    : 'bg-amber-50 border-amber-200 text-amber-900'
+                }`}
+              >
+                {ragResult.found && (
+                  <div className="font-bold text-indigo-900 mb-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-indigo-600" />
+                    {ragResult.clause_id} ({ragResult.title})
+                  </div>
+                )}
+                <div>{ragResult.answer}</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

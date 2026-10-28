@@ -1,7 +1,7 @@
 export interface UserProfile {
   id: string;
   email: string;
-  role: 'INSTITUTION' | 'OFFICER' | 'AUTHORITY' | 'ADMIN';
+  role: 'INSTITUTION' | 'OFFICER' | 'REGIONAL_OFFICER' | 'BUREAU' | 'COMMITTEE' | 'AUTHORITY' | 'ADMIN';
   institutionId?: string | null;
   institutionName?: string | null;
   region?: string | null;
